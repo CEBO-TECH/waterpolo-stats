@@ -30,9 +30,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: >
-      sh -c "npx prisma migrate deploy &&
-             node server.js"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.wts-stats.rule=Host(`wts-stats.cebo.tech`)"
