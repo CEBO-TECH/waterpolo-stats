@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WaterPolo Stats</string>
+    <string name="title_activity_main">WaterPolo Stats</string>
+    <string name="package_name">tech.cebo.waterpolo</string>
+    <string name="custom_url_scheme">tech.cebo.waterpolo</string>
+</resources>

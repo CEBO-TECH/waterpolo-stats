@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: waterpolo-db-new
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: waterpolo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-waterpolo_password_123}
+      POSTGRES_DB: waterpolo_stats
+    volumes:
+      - postgres_data_new:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waterpolo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - waterpolo
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: waterpolo-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://waterpolo:${POSTGRES_PASSWORD:-waterpolo_password_123}@postgres:5432/waterpolo_stats"
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      CORS_ORIGINS: '["http://localhost:3000","http://frontend:3000"]'
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wts-api.rule=Host(`api.wts-stats.cebo.tech`)"
+      - "traefik.http.routers.wts-api.tls=true"
+      - "traefik.http.routers.wts-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wts-api.loadbalancer.server.port=8000"
+    networks:
+      - waterpolo
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8000}
+    container_name: waterpolo-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wts-web.rule=Host(`wts-stats.cebo.tech`)"
+      - "traefik.http.routers.wts-web.tls=true"
+      - "traefik.http.routers.wts-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wts-web.loadbalancer.server.port=3000"
+    networks:
+      - waterpolo
+
+volumes:
+  postgres_data_new:
+    name: waterpolo_postgres_data_new
+    driver: local
+
+networks:
+  waterpolo:
+    driver: bridge
+  # Uncomment for Coolify deployment:
+  # coolify:
+  #   external: true

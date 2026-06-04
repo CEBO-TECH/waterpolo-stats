@@ -1,0 +1,81 @@
+## ─── WaterPolo Stats — Production Docker Compose for Coolify ───
+##
+## Coolify setup:
+## 1. Nowy projekt → Docker Compose → wskaż na repo
+## 2. Compose file: docker-compose.prod.yaml
+## 3. Ustaw env vars w Coolify UI (patrz sekcja environment poniżej)
+## 4. Dodaj domenę: wts-stats.cebo.tech → service frontend
+## 5. Dodaj domenę: api.wts-stats.cebo.tech → service backend
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: waterpolo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: waterpolo_stats
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waterpolo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - default
+      - coolify
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://waterpolo:${POSTGRES_PASSWORD}@postgres:5432/waterpolo_stats"
+      SECRET_KEY: ${SECRET_KEY}
+      CORS_ORIGINS: '["https://wts-stats.cebo.tech"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wts-api.rule=Host(`api.wts-stats.cebo.tech`)"
+      - "traefik.http.routers.wts-api.entrypoints=https"
+      - "traefik.http.routers.wts-api.tls=true"
+      - "traefik.http.routers.wts-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wts-api.loadbalancer.server.port=8000"
+    networks:
+      - default
+      - coolify
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: "https://api.wts-stats.cebo.tech"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wts-web.rule=Host(`wts-stats.cebo.tech`)"
+      - "traefik.http.routers.wts-web.entrypoints=https"
+      - "traefik.http.routers.wts-web.tls=true"
+      - "traefik.http.routers.wts-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wts-web.loadbalancer.server.port=3000"
+    networks:
+      - default
+      - coolify
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  coolify:
+    external: true
