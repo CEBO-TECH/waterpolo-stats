@@ -1,11 +1,4 @@
 ## ─── WaterPolo Stats — Production Docker Compose for Coolify ───
-##
-## Coolify setup:
-## 1. Nowy projekt → Docker Compose → wskaż na repo
-## 2. Compose file: docker-compose.prod.yaml
-## 3. Ustaw env vars w Coolify UI (patrz sekcja environment poniżej)
-## 4. Dodaj domenę: wts-stats.cebo.tech → service frontend
-## 5. Dodaj domenę: api.wts-stats.cebo.tech → service backend
 
 services:
   postgres:
