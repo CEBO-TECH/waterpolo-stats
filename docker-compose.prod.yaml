@@ -1,4 +1,7 @@
 ## ─── WaterPolo Stats — Production Docker Compose for Coolify ───
+## Domeny i SSL zarządza Coolify (pola "Domains for ..." w UI).
+## NIE dodawaj ręcznych etykiet Traefik — Coolify wstrzykuje własne na
+## podstawie domen z UI; ręczne etykiety powodują konflikty routerów.
 
 services:
   postgres:
@@ -17,8 +20,7 @@ services:
       retries: 5
       start_period: 20s
     networks:
-      - default
-      - coolify
+      - default  # baza tylko wewnętrznie — nie na publicznej sieci proxy
 
   backend:
     build:
@@ -32,13 +34,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.wts-api.rule=Host(`api.wts-stats.cebo.tech`)"
-      - "traefik.http.routers.wts-api.entrypoints=https"
-      - "traefik.http.routers.wts-api.tls=true"
-      - "traefik.http.routers.wts-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.wts-api.loadbalancer.server.port=8000"
+    expose:
+      - "8000"  # Coolify mapuje domenę backendu na ten port
     networks:
       - default
       - coolify
@@ -54,13 +51,8 @@ services:
       NODE_ENV: production
     depends_on:
       - backend
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.wts-web.rule=Host(`wts-stats.cebo.tech`)"
-      - "traefik.http.routers.wts-web.entrypoints=https"
-      - "traefik.http.routers.wts-web.tls=true"
-      - "traefik.http.routers.wts-web.tls.certresolver=letsencrypt"
-      - "traefik.http.services.wts-web.loadbalancer.server.port=3000"
+    expose:
+      - "3000"  # Coolify mapuje domenę frontendu na ten port
     networks:
       - default
       - coolify
