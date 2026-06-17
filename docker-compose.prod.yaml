@@ -4,7 +4,7 @@
 ## podstawie domen z UI; ręczne etykiety powodują konflikty routerów.
 
 services:
-  postgres:
+  waterpolo-postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -28,11 +28,11 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: "postgresql+asyncpg://waterpolo:${POSTGRES_PASSWORD}@postgres:5432/waterpolo_stats"
+      DATABASE_URL: "postgresql+asyncpg://waterpolo:${POSTGRES_PASSWORD}@waterpolo-postgres:5432/waterpolo_stats"
       SECRET_KEY: ${SECRET_KEY}
       CORS_ORIGINS: '["https://wts-stats.cebo.tech"]'
     depends_on:
-      postgres:
+      waterpolo-postgres:
         condition: service_healthy
     expose:
       - "8000"  # Coolify mapuje domenę backendu na ten port
