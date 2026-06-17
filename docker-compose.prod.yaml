@@ -1,7 +1,9 @@
 ## ─── WaterPolo Stats — Production Docker Compose for Coolify ───
 ## Domeny i SSL zarządza Coolify (pola "Domains for ..." w UI).
-## NIE dodawaj ręcznych etykiet Traefik — Coolify wstrzykuje własne na
-## podstawie domen z UI; ręczne etykiety powodują konflikty routerów.
+## NIE dodawaj ręcznych etykiet ROUTERÓW Traefika (traefik.http.routers/services...)
+## — Coolify wstrzykuje własne na podstawie domen z UI; duplikaty psują routing.
+## Wyjątek: 'traefik.docker.network' (patrz backend) to tylko wskazówka sieci,
+## nie router — jest bezpieczna i konieczna przy kontenerze w wielu sieciach.
 
 services:
   waterpolo-postgres:
@@ -37,8 +39,14 @@ services:
     expose:
       - "8000"  # Coolify mapuje domenę backendu na ten port
     networks:
-      - default
-      - coolify
+      - default   # dostęp do bazy waterpolo-postgres (izolowana, poza proxy)
+      - coolify   # widoczność dla proxy Coolify/Traefik
+    labels:
+      # Backend jest w DWÓCH sieciach (default+coolify). To NIE jest etykieta
+      # routera — to tylko wskazówka, którą sieć Traefik ma użyć do połączenia
+      # z kontenerem. Bez niej trafia na IP z 'default' i zwraca 503
+      # "no available server". Nie koliduje z routerami wstrzykiwanymi przez Coolify.
+      - "traefik.docker.network=coolify"
 
   frontend:
     build:
@@ -54,7 +62,9 @@ services:
     expose:
       - "3000"  # Coolify mapuje domenę frontendu na ten port
     networks:
-      - default
+      # Front rozmawia z backendem przez publiczny https://api.wts-stats.cebo.tech
+      # (NEXT_PUBLIC_API_URL, wywołania z przeglądarki), więc NIE potrzebuje sieci
+      # 'default'. Tylko 'coolify' => Traefik nie ma wątpliwości, którego IP użyć.
       - coolify
 
 volumes:
