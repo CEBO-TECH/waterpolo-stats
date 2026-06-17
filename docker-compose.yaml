@@ -1,5 +1,5 @@
 services:
-  postgres:
+  waterpolo-postgres:
     image: postgres:16-alpine
     container_name: waterpolo-db
     restart: unless-stopped
@@ -25,10 +25,10 @@ services:
     container_name: waterpolo-app
     restart: unless-stopped
     environment:
-      DATABASE_URL: "postgresql://waterpolo:waterpolo_password_123@postgres:5432/waterpolo_stats?schema=public"
+      DATABASE_URL: "postgresql://waterpolo:waterpolo_password_123@waterpolo-postgres:5432/waterpolo_stats?schema=public"
       NODE_ENV: production
     depends_on:
-      postgres:
+      waterpolo-postgres:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
