@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
 
 from src.domain.models import (
+    AgeCategory,
     Club,
     ClubConfig,
+    ClubInvitation,
+    Substitution,
     ClubMembership,
     ClubSettings,
     Event,
@@ -13,8 +16,71 @@ from src.domain.models import (
     RosterEntry,
     Season,
     User,
+    UserRole,
+    VoiceNote,
     YouTubeStream,
 )
+
+
+class SubstitutionRepository(ABC):
+    @abstractmethod
+    async def list_for_match(
+        self, club_id: str, match_id: str
+    ) -> list[Substitution]: ...
+
+    @abstractmethod
+    async def create(self, sub: Substitution) -> Substitution: ...
+
+    @abstractmethod
+    async def create_many(self, subs: list[Substitution]) -> list[Substitution]: ...
+
+
+class VoiceNoteRepository(ABC):
+    @abstractmethod
+    async def create(self, note: VoiceNote) -> VoiceNote: ...
+
+    @abstractmethod
+    async def list_for_match(self, club_id: str, match_id: str) -> list[VoiceNote]: ...
+
+    @abstractmethod
+    async def get_by_id(self, club_id: str, note_id: str) -> VoiceNote | None: ...
+
+    @abstractmethod
+    async def delete(self, club_id: str, note_id: str) -> None: ...
+
+
+class ClubInvitationRepository(ABC):
+    @abstractmethod
+    async def create(self, invitation: ClubInvitation) -> ClubInvitation: ...
+
+    @abstractmethod
+    async def list_pending(self, club_id: str) -> list[ClubInvitation]: ...
+
+    @abstractmethod
+    async def get_by_token(self, token: str) -> ClubInvitation | None: ...
+
+    @abstractmethod
+    async def update_status(self, invitation_id: str, status: str) -> None: ...
+
+    @abstractmethod
+    async def delete(self, club_id: str, invitation_id: str) -> None: ...
+
+
+class AgeCategoryRepository(ABC):
+    @abstractmethod
+    async def list_by_club(self, club_id: str) -> list[AgeCategory]: ...
+
+    @abstractmethod
+    async def create(self, category: AgeCategory) -> AgeCategory: ...
+
+    @abstractmethod
+    async def update(self, category: AgeCategory) -> AgeCategory | None: ...
+
+    @abstractmethod
+    async def delete(self, club_id: str, category_id: str) -> None: ...
+
+    @abstractmethod
+    async def seed_defaults(self, club_id: str) -> list[AgeCategory]: ...
 
 
 class ClubRepository(ABC):
@@ -49,6 +115,20 @@ class UserRepository(ABC):
     @abstractmethod
     async def create_membership(self, membership: ClubMembership) -> ClubMembership: ...
 
+    @abstractmethod
+    async def list_members(self, club_id: str) -> list[tuple[ClubMembership, str]]: ...
+
+    @abstractmethod
+    async def update_membership_role(
+        self, user_id: str, club_id: str, role: UserRole
+    ) -> ClubMembership | None: ...
+
+    @abstractmethod
+    async def delete_membership(self, user_id: str, club_id: str) -> None: ...
+
+    @abstractmethod
+    async def count_owners(self, club_id: str) -> int: ...
+
 
 class PlayerRepository(ABC):
     @abstractmethod
@@ -60,7 +140,18 @@ class PlayerRepository(ABC):
     ) -> Player | None: ...
 
     @abstractmethod
+    async def get_by_user_id(self, club_id: str, user_id: str) -> Player | None: ...
+
+    @abstractmethod
+    async def get_by_email(self, club_id: str, email: str) -> Player | None: ...
+
+    @abstractmethod
     async def create(self, player: Player) -> Player: ...
+
+    @abstractmethod
+    async def update_fields(
+        self, club_id: str, player_id: str, fields: dict
+    ) -> Player | None: ...
 
     @abstractmethod
     async def delete(self, club_id: str, player_id: str) -> None: ...
@@ -72,6 +163,9 @@ class PlayerRepository(ABC):
     async def get_age_categories(
         self, player_id: str
     ) -> list[PlayerAgeCategory]: ...
+
+    @abstractmethod
+    async def get_age_categories_map(self, club_id: str) -> dict[str, list[str]]: ...
 
     @abstractmethod
     async def set_age_categories(
@@ -138,6 +232,9 @@ class EventRepository(ABC):
     ) -> list[Event]: ...
 
     @abstractmethod
+    async def get_all_for_club(self, club_id: str) -> list[Event]: ...
+
+    @abstractmethod
     async def get_all_for_player(
         self, club_id: str, player_id: str, season_id: str | None = None
     ) -> list[Event]: ...
@@ -181,6 +278,14 @@ class RosterRepository(ABC):
     async def get_previous_match_roster(
         self, club_id: str, current_match_id: str
     ) -> list[RosterEntry]: ...
+
+    @abstractmethod
+    async def get_counts_for_club(self, club_id: str) -> dict[str, int]: ...
+
+    @abstractmethod
+    async def get_match_ids_for_player(
+        self, club_id: str, player_id: str
+    ) -> list[str]: ...
 
 
 class SeasonRepository(ABC):

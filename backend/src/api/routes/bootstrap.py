@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from src.api.deps import (
+    AgeCategoryRepo,
     AnyMember,
     ConfigRepo,
     MatchRepo,
@@ -26,14 +27,18 @@ async def get_bootstrap(
     roster_repo: RosterRepo,
     config_repo: ConfigRepo,
     youtube_repo: YouTubeRepo,
+    age_category_repo: AgeCategoryRepo,
 ):
     """Load initial data for the app — settings, players, matches, roster, config."""
     user, membership = ctx
 
     settings = await settings_repo.get_for_club(club_id)
     players = await player_repo.list_by_club(club_id)
+    player_categories = await player_repo.get_age_categories_map(club_id)
     matches = await match_repo.list_active(club_id)
+    match_roster_counts = await roster_repo.get_counts_for_club(club_id)
     config = await config_repo.get_for_club(club_id)
+    age_cats = await age_category_repo.list_by_club(club_id)
 
     # Get roster for active match
     roster_active = []
@@ -58,13 +63,17 @@ async def get_bootstrap(
                 "Quarter": settings.quarter,
             },
             "players": [
-                {"player_id": p.player_id, "number": p.number, "name": p.name, "team": p.team}
+                {
+                    "player_id": p.player_id, "number": p.number, "name": p.name, "team": p.team,
+                    "age_categories": player_categories.get(p.player_id, []),
+                }
                 for p in players
             ],
             "matches": [
                 {
                     "match_id": m.match_id, "date": m.date, "opponent": m.opponent,
                     "place": m.place, "ageCategory": m.age_category, "status": m.status.value,
+                    "rosterCount": match_roster_counts.get(m.match_id, 0),
                 }
                 for m in matches
             ],
@@ -77,6 +86,10 @@ async def get_bootstrap(
                 "active_modules": config.active_modules,
                 "button_layout": config.button_layout,
             },
+            "ageCategories": [
+                {"id": c.id, "name": c.name, "sort_order": c.sort_order}
+                for c in age_cats
+            ],
             "youtube": youtube,
         },
         headers={

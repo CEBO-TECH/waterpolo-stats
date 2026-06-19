@@ -5,10 +5,23 @@ import uuid
 from fastapi import APIRouter, HTTPException
 
 from src.api.deps import AnyMember, CoachOrOwner, PlayerRepo
-from src.api.schemas.player import AgeCategoryUpdate, PlayerCreate, PlayerResponse
+from src.api.schemas.player import (
+    AgeCategoryUpdate,
+    PlayerCreate,
+    PlayerResponse,
+    PlayerUpdate,
+)
 from src.domain.models import Player
 
 router = APIRouter(prefix="/v1/clubs/{club_id}/players", tags=["players"])
+
+
+def _player_response(p: Player, age_categories: list[str]) -> PlayerResponse:
+    return PlayerResponse(
+        player_id=p.player_id, number=p.number, name=p.name, team=p.team,
+        birth_year=p.birth_year, email=p.email, has_account=p.user_id is not None,
+        age_categories=age_categories,
+    )
 
 
 @router.get("", response_model=list[PlayerResponse])
@@ -16,12 +29,8 @@ async def list_players(
     club_id: str, ctx: AnyMember, repo: PlayerRepo,
 ):
     players = await repo.list_by_club(club_id)
-    return [
-        PlayerResponse(
-            player_id=p.player_id, number=p.number, name=p.name, team=p.team
-        )
-        for p in players
-    ]
+    categories = await repo.get_age_categories_map(club_id)
+    return [_player_response(p, categories.get(p.player_id, [])) for p in players]
 
 
 @router.post("", response_model=PlayerResponse, status_code=201)
@@ -35,12 +44,26 @@ async def create_player(
         number=body.number,
         name=body.name,
         team=body.team,
+        birth_year=body.birth_year,
+        email=body.email,
     )
     created = await repo.create(player)
-    return PlayerResponse(
-        player_id=created.player_id, number=created.number,
-        name=created.name, team=created.team,
-    )
+    return _player_response(created, [])
+
+
+@router.put("/{player_id}", response_model=PlayerResponse)
+async def update_player(
+    club_id: str, player_id: str, body: PlayerUpdate,
+    ctx: CoachOrOwner, repo: PlayerRepo,
+):
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    updated = await repo.update_fields(club_id, player_id, fields)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Player not found")
+    categories = await repo.get_age_categories(player_id)
+    return _player_response(updated, [c.age_category for c in categories])
 
 
 @router.delete("/{player_id}")

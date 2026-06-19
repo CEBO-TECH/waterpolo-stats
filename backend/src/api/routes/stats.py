@@ -2,14 +2,64 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from src.api.deps import AnyMember, EventRepo, MatchRepo, PlayerRepo, RosterRepo, SeasonRepo
-from src.domain.services import PlayerProfileService, StatsService, TeamStatsService
+from src.domain.services import (
+    AnalyticsService,
+    PlayerProfileService,
+    StatsService,
+    TeamStatsService,
+)
 
 router = APIRouter(prefix="/v1/clubs/{club_id}", tags=["stats"])
 stats_service = StatsService()
 player_profile_service = PlayerProfileService()
 team_stats_service = TeamStatsService()
+analytics_service = AnalyticsService()
+
+
+class MultiStatsRequest(BaseModel):
+    match_ids: list[str]
+
+
+@router.post("/stats/multi")
+async def multi_match_stats(
+    club_id: str, body: MultiStatsRequest,
+    ctx: AnyMember,
+    match_repo: MatchRepo,
+    event_repo: EventRepo,
+):
+    """Aggregate stats across several matches + per-quarter distribution + of/def index."""
+    matches = []
+    events = []
+    for mid in body.match_ids:
+        m = await match_repo.get_by_match_id(club_id, mid)
+        if m:
+            matches.append(m)
+            events.extend(await event_repo.get_all_for_match(club_id, mid))
+
+    result = analytics_service.compute_multi(matches, events)
+    return {
+        "match_count": result.match_count,
+        "totals": result.totals,
+        "trend": [
+            {
+                "match_id": t.match_id, "date": t.date, "opponent": t.opponent,
+                "goals": t.goals, "turnovers": t.turnovers, "steals": t.steals,
+                "of_index": t.of_index, "def_index": t.def_index,
+                "my_score": t.my_score, "opp_score": t.opp_score,
+            }
+            for t in result.trend
+        ],
+        "by_quarter": [
+            {
+                "quarter": q.quarter, "goals": q.goals, "turnovers": q.turnovers,
+                "of_index": q.of_index, "def_index": q.def_index, "events": q.events,
+            }
+            for q in result.by_quarter
+        ],
+    }
 
 
 @router.get("/matches/{match_id}/stats")

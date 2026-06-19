@@ -18,6 +18,7 @@ youtube_service = YouTubeService()
 class YouTubeStreamCreate(BaseModel):
     youtube_url: str
     stream_start_time: str | None = None  # ISO datetime
+    start_now: bool = False  # set stream_start_time to server "now" (same clock as events)
 
 
 def _extract_video_id(url: str) -> str | None:
@@ -45,7 +46,9 @@ async def attach_youtube_stream(
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
     start_time = None
-    if body.stream_start_time:
+    if body.start_now:
+        start_time = datetime.utcnow()
+    elif body.stream_start_time:
         start_time = datetime.fromisoformat(body.stream_start_time)
 
     # Upsert
@@ -53,7 +56,9 @@ async def attach_youtube_stream(
     if existing:
         existing.youtube_url = body.youtube_url
         existing.video_id = video_id
-        existing.stream_start_time = start_time
+        # Keep an already-set start time if the caller didn't provide a new one.
+        if start_time is not None:
+            existing.stream_start_time = start_time
         updated = await repo.update(existing)
         return {
             "youtube_url": updated.youtube_url,
@@ -108,7 +113,14 @@ async def get_event_video_url(
         raise HTTPException(status_code=404, detail="Event not found")
 
     url = youtube_service.get_event_video_url(event, stream)
-    if not url:
+    if not url or not stream.stream_start_time:
         raise HTTPException(status_code=400, detail="Cannot calculate video timestamp")
 
-    return {"video_url": url}
+    seek_seconds = youtube_service.calculate_seek_position(
+        stream.stream_start_time, event.timestamp
+    )
+    return {
+        "video_url": url,
+        "video_id": stream.video_id,
+        "seek_seconds": seek_seconds,
+    }

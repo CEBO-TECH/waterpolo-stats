@@ -2,14 +2,19 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { AppState, Mode } from '@/lib/types';
+import { AppState, ClubInfo, Mode } from '@/lib/types';
 import { useOfflineQueue } from '@/lib/useOfflineQueue';
 import LoginPage from '@/components/LoginPage';
+import AppNav from '@/components/AppNav';
+import Dashboard from '@/components/Dashboard';
 import ScoreKeeper from '@/components/ScoreKeeper';
 import StatsPanel from '@/components/StatsPanel';
 import PlayersPanel from '@/components/PlayersPanel';
 import MatchesPanel from '@/components/MatchesPanel';
 import AdminPanel from '@/components/AdminPanel';
+import UsersPanel from '@/components/UsersPanel';
+import PlayerView from '@/components/PlayerView';
+import MvpSummary from '@/components/MvpSummary';
 
 export default function Home() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -23,9 +28,13 @@ export default function Home() {
     rosterActive: [],
     recentEvents: [],
     config: null,
+    clubs: [],
+    currentClubId: '',
+    ageCategories: [],
+    youtube: null,
   });
 
-  const [mode, setMode] = useState<Mode>('score');
+  const [mode, setMode] = useState<Mode>('dashboard');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -38,6 +47,7 @@ export default function Home() {
   }>({ show: false, quarter: 1, my: '', opp: '' });
 
   const [endMatchPopup, setEndMatchPopup] = useState(false);
+  const [mvpSummary, setMvpSummary] = useState<{ matchId: string; data: any } | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -53,10 +63,35 @@ export default function Home() {
     }
   }, []); // eslint-disable-line
 
+  // Accept a club invitation from ?invite=<token> once authenticated.
+  useEffect(() => {
+    if (authenticated !== true) return;
+    const token = new URLSearchParams(window.location.search).get('invite');
+    if (!token) return;
+    (async () => {
+      try {
+        await api.acceptInvitation(token);
+        showToast('Dołączono do klubu');
+        bootstrap();
+      } catch (e: any) {
+        showToast(e.message || 'Nie udało się przyjąć zaproszenia');
+      } finally {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    })();
+  }, [authenticated]); // eslint-disable-line
+
   const bootstrap = async () => {
     setLoading(true);
     try {
       const data = await api.bootstrap();
+      let clubs: ClubInfo[] = [];
+      try {
+        const me = await api.getMe();
+        clubs = me.clubs || [];
+      } catch {
+        // non-fatal — club switcher just won't show
+      }
       setState(prev => ({
         ...prev,
         settings: data.settings,
@@ -65,6 +100,10 @@ export default function Home() {
         user: data.user,
         rosterActive: data.rosterActive || [],
         config: data.config,
+        clubs,
+        currentClubId: api.getCurrentClubId(),
+        ageCategories: data.ageCategories || [],
+        youtube: data.youtube || null,
       }));
     } catch (e: any) {
       if (e.message?.includes('authenticated') || e.message?.includes('Bootstrap')) {
@@ -86,7 +125,24 @@ export default function Home() {
     setState({
       settings: null, players: [], matches: [], selected: null,
       stats: null, user: null, rosterActive: [], recentEvents: [], config: null,
+      clubs: [], currentClubId: '', ageCategories: [], youtube: null,
     });
+  };
+
+  const switchClub = async (clubId: string) => {
+    if (!clubId || clubId === state.currentClubId) return;
+    setLoading(true);
+    try {
+      await api.selectClub(clubId);
+      setMode('score');
+      setDrawerOpen(false);
+      await bootstrap();
+      showToast('Zmieniono klub');
+    } catch (e: any) {
+      showToast(e.message || 'Błąd zmiany klubu');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const setMatch = async (matchId: string) => {
@@ -144,8 +200,22 @@ export default function Home() {
       setEndMatchPopup(false);
       showToast('Mecz zakończony');
       bootstrap();
+      const mvp = await api.getMvp(matchId);
+      if (mvp) setMvpSummary({ matchId, data: mvp });
     } catch (e: any) {
       showToast(e.message || 'Błąd');
+    }
+  };
+
+  const confirmMvp = async (playerId: string) => {
+    if (!mvpSummary) return;
+    try {
+      await api.confirmMvp(mvpSummary.matchId, playerId);
+      showToast('Zapisano MVP');
+    } catch (e: any) {
+      showToast(e.message || 'Błąd');
+    } finally {
+      setMvpSummary(null);
     }
   };
 
@@ -171,6 +241,21 @@ export default function Home() {
     }
   }, [mode, state.settings?.ActiveMatch]); // eslint-disable-line
 
+  // Close drawer with Escape
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+
+  const selectMode = (m: Mode) => {
+    setMode(m);
+    setDrawerOpen(false);
+  };
+
   // ─── Auth loading ───
   if (authenticated === null) {
     return <div className="loading-overlay"><div className="spinner" /></div>;
@@ -179,17 +264,34 @@ export default function Home() {
     return <LoginPage onLogin={onLogin} />;
   }
 
-  const MODES: { key: Mode; label: string }[] = [
-    { key: 'score', label: 'Asystent' },
-    { key: 'stats', label: 'Statystyki' },
-    { key: 'players', label: 'Zawodnicy' },
-    { key: 'matches', label: 'Mecze' },
-    { key: 'admin', label: 'Nowy mecz' },
-  ];
+  // Players get a restricted, self-service view (their stats + their matches).
+  if (state.user?.role === 'player') {
+    return <PlayerView state={state} onLogout={logout} />;
+  }
 
   return (
-    <>
+    <div className="app-shell">
+      <AppNav
+        mode={mode}
+        onSelect={selectMode}
+        variant="sidebar"
+        user={state.user}
+        onLogout={logout}
+        clubs={state.clubs}
+        currentClubId={state.currentClubId}
+        onSwitchClub={switchClub}
+      />
+
+      <div className="app-main">
       <header>
+        <button
+          className="burger"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Otwórz menu"
+        >
+          ☰
+        </button>
+
         <div className="tag">
           Mecz:
           <select
@@ -198,7 +300,7 @@ export default function Home() {
           >
             {state.matches.map(m => (
               <option key={m.match_id} value={m.match_id}>
-                vs {m.opponent || m.match_id} ({m.ageCategory})
+                vs {m.opponent || m.match_id} ({m.ageCategory || 'bez kat.'})
               </option>
             ))}
           </select>
@@ -236,16 +338,6 @@ export default function Home() {
 
         <div style={{ marginLeft: 'auto' }} />
 
-        {MODES.map(m => (
-          <button
-            key={m.key}
-            className={`btn small${mode === m.key ? ' primary' : ''}`}
-            onClick={() => { setMode(m.key); setDrawerOpen(false); }}
-          >
-            {m.label}
-          </button>
-        ))}
-
         {/* Connection status */}
         <div className="tag" style={{
           borderColor: connectionStatus === 'online' ? 'var(--green)' : 'var(--red)',
@@ -267,41 +359,35 @@ export default function Home() {
             Nie odswiezaj strony!
           </div>
         )}
-
-        <div className="tag">
-          <span className="small">{state.user?.email?.split('@')[0]}</span>
-          <button className="btn small danger" onClick={logout} style={{ padding: '2px 8px', minHeight: 24 }}>
-            Wyloguj
-          </button>
-        </div>
-
-        <button onClick={() => setDrawerOpen(true)} style={{ display: 'none' }}>☰</button>
       </header>
 
       {drawerOpen && (
         <>
           <div className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
           <div className="drawer">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="muted">Menu</div>
-              <button onClick={() => setDrawerOpen(false)}>✕</button>
-            </div>
-            {MODES.map(m => (
-              <button
-                key={m.key}
-                className={`btn menu-btn${mode === m.key ? ' primary' : ''}`}
-                onClick={() => { setMode(m.key); setDrawerOpen(false); }}
-              >
-                {m.label}
-              </button>
-            ))}
-            <div style={{ marginTop: 'auto', textAlign: 'center' }}>
-              <div className="muted small">Powered by CEBO.TECH</div>
-            </div>
+            <AppNav
+              mode={mode}
+              onSelect={selectMode}
+              variant="drawer"
+              user={state.user}
+              onLogout={logout}
+              onClose={() => setDrawerOpen(false)}
+              clubs={state.clubs}
+              currentClubId={state.currentClubId}
+              onSwitchClub={switchClub}
+            />
           </div>
         </>
       )}
 
+      {mode === 'dashboard' && (
+        <Dashboard
+          state={state}
+          showToast={showToast}
+          goToMode={(m) => setMode(m)}
+          setMatch={setMatch}
+        />
+      )}
       {mode === 'score' && (
         <ScoreKeeper
           state={state}
@@ -319,6 +405,7 @@ export default function Home() {
       {mode === 'players' && <PlayersPanel state={state} showToast={showToast} refresh={bootstrap} />}
       {mode === 'matches' && <MatchesPanel state={state} showToast={showToast} refresh={bootstrap} />}
       {mode === 'admin' && <AdminPanel state={state} showToast={showToast} refresh={bootstrap} />}
+      {mode === 'users' && <UsersPanel state={state} showToast={showToast} />}
 
       {loading && <div className="loading-overlay"><div className="spinner" /></div>}
       {toast && <div className="toast">{toast}</div>}
@@ -368,6 +455,15 @@ export default function Home() {
           </div>
         </div>
       )}
-    </>
+
+      {mvpSummary && (
+        <MvpSummary
+          data={mvpSummary.data}
+          onConfirm={confirmMvp}
+          onClose={() => setMvpSummary(null)}
+        />
+      )}
+      </div>
+    </div>
   );
 }

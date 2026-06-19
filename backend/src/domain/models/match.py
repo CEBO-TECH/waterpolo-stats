@@ -20,6 +20,7 @@ class Match:
     status: MatchStatus = MatchStatus.ACTIVE
     archived: bool = False
     season_id: str | None = None
+    mvp_player_id: str | None = None
     # Cumulative quarter scores (score at END of each quarter)
     q1_my: int = 0
     q1_opp: int = 0

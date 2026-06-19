@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.models import RosterEntry
@@ -52,6 +52,25 @@ class SQLAlchemyRosterRepository(RosterRepository):
         self.session.add_all(models)
         await self.session.flush()
         return [roster_to_domain(m) for m in models]
+
+    async def get_match_ids_for_player(self, club_id: str, player_id: str) -> list[str]:
+        result = await self.session.execute(
+            select(MatchRosterModel.match_id)
+            .where(
+                MatchRosterModel.club_id == club_id,
+                MatchRosterModel.player_id == player_id,
+            )
+        )
+        return [r for r in result.scalars().all()]
+
+    async def get_counts_for_club(self, club_id: str) -> dict[str, int]:
+        """Roster size per match for a club (one query)."""
+        result = await self.session.execute(
+            select(MatchRosterModel.match_id, func.count(MatchRosterModel.id))
+            .where(MatchRosterModel.club_id == club_id)
+            .group_by(MatchRosterModel.match_id)
+        )
+        return {match_id: count for match_id, count in result.all()}
 
     async def get_previous_match_roster(
         self, club_id: str, current_match_id: str

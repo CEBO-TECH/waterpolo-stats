@@ -70,6 +70,20 @@ class ApiClient {
     return res.json();
   }
 
+  /** Re-issue an access token scoped to the chosen club and make it active. */
+  async selectClub(clubId: string) {
+    const res = await this.fetch(`${API_URL}/v1/auth/select-club`, {
+      method: 'POST',
+      body: JSON.stringify({ club_id: clubId }),
+    });
+    if (!res.ok) throw new Error('Nie udało się wybrać klubu');
+    const data = await res.json();
+    localStorage.setItem('access_token', data.access_token);
+    if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+    this.setClubId(clubId);
+    return data;
+  }
+
   // ─── Clubs ───
 
   async createClub(name: string) {
@@ -77,6 +91,74 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ name }),
     });
+    return res.json();
+  }
+
+  // ─── Members / invitations ───
+
+  async getMembers() {
+    const res = await this.fetch(this.clubUrl('/members'));
+    if (!res.ok) throw new Error('Brak dostępu do listy użytkowników');
+    return res.json();
+  }
+
+  async inviteMember(email: string, role: string) {
+    const res = await this.fetch(this.clubUrl('/invite'), {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || 'Nie udało się zaprosić');
+    }
+    return res.json();
+  }
+
+  async updateMemberRole(userId: string, role: string) {
+    const res = await this.fetch(this.clubUrl(`/members/${userId}`), {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || 'Nie udało się zmienić roli');
+    }
+    return res.json();
+  }
+
+  async removeMember(userId: string) {
+    const res = await this.fetch(this.clubUrl(`/members/${userId}`), { method: 'DELETE' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || 'Nie udało się usunąć');
+    }
+    return res.json();
+  }
+
+  async getInvitations() {
+    const res = await this.fetch(this.clubUrl('/invitations'));
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  async revokeInvitation(invitationId: string) {
+    const res = await this.fetch(this.clubUrl(`/invitations/${invitationId}`), { method: 'DELETE' });
+    return res.json();
+  }
+
+  async acceptInvitation(token: string) {
+    const res = await this.fetch(`${API_URL}/v1/invitations/${token}/accept`, { method: 'POST' });
+    if (!res.ok) throw new Error('Nie udało się przyjąć zaproszenia');
+    return res.json();
+  }
+
+  // ─── Dashboard ───
+
+  async getDashboard(ageCategory?: string) {
+    const params: string[] = [`t=${Date.now()}`];
+    if (ageCategory) params.push(`age_category=${encodeURIComponent(ageCategory)}`);
+    const res = await this.fetch(this.clubUrl(`/dashboard?${params.join('&')}`));
+    if (!res.ok) throw new Error('Nie udało się pobrać dashboardu');
     return res.json();
   }
 
@@ -113,11 +195,23 @@ class ApiClient {
     return res.json();
   }
 
-  async createPlayer(number: number, name: string) {
+  async createPlayer(
+    number: number, name: string,
+    extra: { birth_year?: number | null; email?: string | null } = {},
+  ) {
     const res = await this.fetch(this.clubUrl('/players'), {
       method: 'POST',
-      body: JSON.stringify({ number, name }),
+      body: JSON.stringify({ number, name, ...extra }),
     });
+    return res.json();
+  }
+
+  async updatePlayer(playerId: string, fields: { number?: number; name?: string; team?: string; birth_year?: number | null; email?: string | null }) {
+    const res = await this.fetch(this.clubUrl(`/players/${playerId}`), {
+      method: 'PUT',
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać zawodnika');
     return res.json();
   }
 
@@ -125,6 +219,42 @@ class ApiClient {
     const res = await this.fetch(this.clubUrl(`/players/${playerId}`), {
       method: 'DELETE',
     });
+    return res.json();
+  }
+
+  async setPlayerAgeCategories(playerId: string, categories: string[]) {
+    const res = await this.fetch(this.clubUrl(`/players/${playerId}/age-categories`), {
+      method: 'PUT',
+      body: JSON.stringify({ categories }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać kategorii');
+    return res.json();
+  }
+
+  // ─── Age categories (club dictionary) ───
+
+  async getAgeCategories() {
+    const res = await this.fetch(this.clubUrl('/age-categories'));
+    return res.json();
+  }
+
+  async createAgeCategory(name: string) {
+    const res = await this.fetch(this.clubUrl('/age-categories'), {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Nie udało się dodać kategorii');
+    }
+    return res.json();
+  }
+
+  async deleteAgeCategory(categoryId: string) {
+    const res = await this.fetch(this.clubUrl(`/age-categories/${categoryId}`), {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Nie udało się usunąć kategorii');
     return res.json();
   }
 
@@ -136,17 +266,33 @@ class ApiClient {
   }
 
   async createMatch(match: any, roster: any[]) {
+    // Backend expects snake_case `age_category`; UI carries `ageCategory`.
+    const payload = {
+      match: {
+        match_id: match.match_id,
+        date: match.date || '',
+        opponent: match.opponent || '',
+        place: match.place || '',
+        age_category: match.ageCategory ?? match.age_category ?? '',
+      },
+      roster,
+    };
     const res = await this.fetch(this.clubUrl('/matches'), {
       method: 'POST',
-      body: JSON.stringify({ match, roster }),
+      body: JSON.stringify(payload),
     });
     return res.json();
   }
 
   async editMatch(matchId: string, fields: any) {
+    const body: any = { ...fields };
+    if ('ageCategory' in body) {
+      body.age_category = body.ageCategory;
+      delete body.ageCategory;
+    }
     const res = await this.fetch(this.clubUrl(`/matches/${matchId}`), {
       method: 'PUT',
-      body: JSON.stringify(fields),
+      body: JSON.stringify(body),
     });
     return res.json();
   }
@@ -167,6 +313,15 @@ class ApiClient {
 
   async getRoster(matchId: string) {
     const res = await this.fetch(this.clubUrl(`/matches/${matchId}/roster`));
+    return res.json();
+  }
+
+  async setRoster(matchId: string, roster: any[]) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/roster`), {
+      method: 'PUT',
+      body: JSON.stringify({ roster }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać składu');
     return res.json();
   }
 
@@ -205,6 +360,23 @@ class ApiClient {
     return res.json();
   }
 
+  // ─── Substitutions / play-time ───
+
+  async getPlaytime(matchId: string) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/playtime?t=${Date.now()}`));
+    if (!res.ok) return { players: {} };
+    return res.json();
+  }
+
+  async recordSubstitution(matchId: string, playerId: string, direction: 'in' | 'out', quarter = 1) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/substitutions`), {
+      method: 'POST',
+      body: JSON.stringify({ player_id: playerId, direction, quarter }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać zmiany');
+    return res.json();
+  }
+
   async undoEvent(windowMinutes = 3) {
     const res = await this.fetch(this.clubUrl('/events/undo'), {
       method: 'POST',
@@ -220,6 +392,83 @@ class ApiClient {
     return res.json();
   }
 
+  // ─── Voice notes ───
+
+  async uploadVoiceNote(
+    matchId: string, blob: Blob,
+    opts: { duration_s?: number; note?: string; player_id?: string } = {},
+  ) {
+    const fd = new FormData();
+    fd.append('file', blob, 'note.webm');
+    if (opts.duration_s != null) fd.append('duration_s', String(opts.duration_s));
+    if (opts.note) fd.append('note', opts.note);
+    if (opts.player_id) fd.append('player_id', opts.player_id);
+    const token = this.getToken();
+    const res = await fetch(this.clubUrl(`/matches/${matchId}/voice-notes`), {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) throw new Error('Nie udało się wysłać notatki');
+    return res.json();
+  }
+
+  async getVoiceNotes(matchId: string) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/voice-notes`));
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  async getVoiceNoteAudioUrl(matchId: string, noteId: string): Promise<string | null> {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/voice-notes/${noteId}/audio`));
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  async deleteVoiceNote(matchId: string, noteId: string) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/voice-notes/${noteId}`), { method: 'DELETE' });
+    return res.json();
+  }
+
+  // ─── Player self-service ───
+
+  async getMyPlayer() {
+    const res = await this.fetch(this.clubUrl('/me/player'));
+    if (!res.ok) return { player: null };
+    return res.json();
+  }
+
+  async getMyMatches() {
+    const res = await this.fetch(this.clubUrl('/me/matches'));
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  async getMvp(matchId: string) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/mvp?t=${Date.now()}`));
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  async confirmMvp(matchId: string, playerId: string) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/mvp`), {
+      method: 'PUT',
+      body: JSON.stringify({ player_id: playerId }),
+    });
+    if (!res.ok) throw new Error('Nie udało się zapisać MVP');
+    return res.json();
+  }
+
+  async getMultiStats(matchIds: string[]) {
+    const res = await this.fetch(this.clubUrl('/stats/multi'), {
+      method: 'POST',
+      body: JSON.stringify({ match_ids: matchIds }),
+    });
+    if (!res.ok) throw new Error('Nie udało się pobrać statystyk');
+    return res.json();
+  }
+
   async getPlayerProfile(playerId: string, seasonId?: string) {
     let url = this.clubUrl(`/players/${playerId}/stats`);
     if (seasonId) url += `?season_id=${seasonId}`;
@@ -229,16 +478,34 @@ class ApiClient {
 
   // ─── YouTube ───
 
-  async attachYouTube(matchId: string, youtubeUrl: string, streamStartTime?: string) {
+  async attachYouTube(
+    matchId: string,
+    youtubeUrl: string,
+    opts: { streamStartTime?: string; startNow?: boolean } = {},
+  ) {
     const res = await this.fetch(this.clubUrl(`/matches/${matchId}/youtube`), {
       method: 'POST',
-      body: JSON.stringify({ youtube_url: youtubeUrl, stream_start_time: streamStartTime }),
+      body: JSON.stringify({
+        youtube_url: youtubeUrl,
+        stream_start_time: opts.streamStartTime,
+        start_now: opts.startNow || false,
+      }),
     });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.detail || 'Nie udało się zapisać streamu');
+    }
     return res.json();
   }
 
   async getYouTube(matchId: string) {
     const res = await this.fetch(this.clubUrl(`/matches/${matchId}/youtube`));
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  async getEventVideoUrl(matchId: string, eventId: string) {
+    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/events/${eventId}/video-url`));
     if (!res.ok) return null;
     return res.json();
   }
@@ -262,6 +529,10 @@ class ApiClient {
 
   setClubId(clubId: string) {
     localStorage.setItem('club_id', clubId);
+  }
+
+  getCurrentClubId(): string {
+    return this.getClubId();
   }
 
   logout() {

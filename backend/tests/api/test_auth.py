@@ -51,3 +51,31 @@ async def test_me_authenticated(auth_client: AsyncClient):
     assert data["email"] == "test@test.pl"
     assert len(data["clubs"]) == 1
     assert data["clubs"][0]["role"] == "owner"
+
+
+@pytest.mark.asyncio
+async def test_select_club(client: AsyncClient):
+    await client.post("/v1/auth/register", json={"email": "a@b.pl", "password": "pass123"})
+    login = await client.post("/v1/auth/login", json={"email": "a@b.pl", "password": "pass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    club = await client.post("/v1/clubs", json={"name": "Klub A"}, headers=headers)
+    club_id = club.json()["id"]
+
+    r = await client.post("/v1/auth/select-club", json={"club_id": club_id}, headers=headers)
+    assert r.status_code == 200
+    assert "access_token" in r.json()
+
+
+@pytest.mark.asyncio
+async def test_select_club_not_member(client: AsyncClient):
+    await client.post("/v1/auth/register", json={"email": "a@b.pl", "password": "pass123"})
+    login = await client.post("/v1/auth/login", json={"email": "a@b.pl", "password": "pass123"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    r = await client.post("/v1/auth/select-club", json={"club_id": "nonexistent"}, headers=headers)
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_select_club_unauthenticated(client: AsyncClient):
+    r = await client.post("/v1/auth/select-club", json={"club_id": "x"})
+    assert r.status_code == 401

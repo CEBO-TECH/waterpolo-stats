@@ -90,6 +90,14 @@ class SQLAlchemyEventRepository(EventRepository):
         )
         return [event_to_domain(r) for r in result.scalars().all()]
 
+    async def get_all_for_club(self, club_id: str) -> list[Event]:
+        result = await self.session.execute(
+            select(EventModel)
+            .where(EventModel.club_id == club_id)
+            .order_by(EventModel.timestamp.asc())
+        )
+        return [event_to_domain(r) for r in result.scalars().all()]
+
     async def get_all_for_player(
         self, club_id: str, player_id: str, season_id: str | None = None
     ) -> list[Event]:

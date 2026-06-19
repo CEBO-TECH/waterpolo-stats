@@ -11,6 +11,15 @@ class Settings(BaseSettings):
     INITIAL_ADMIN_EMAIL: str = ""
     INITIAL_ADMIN_PASSWORD: str = ""
 
+    # Voice-note object storage. "local" (dev/test) or "s3" (MinIO / S3 in prod).
+    STORAGE_BACKEND: str = "local"
+    VOICE_STORAGE_DIR: str = "/tmp/wts_voice_notes"
+    S3_ENDPOINT: str = ""  # e.g. http://minio:9000
+    S3_BUCKET: str = "voice-notes"
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+    S3_REGION: str = "us-east-1"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

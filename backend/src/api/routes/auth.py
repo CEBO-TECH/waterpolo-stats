@@ -14,6 +14,7 @@ from src.api.schemas.auth import (
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    SelectClubRequest,
     TokenResponse,
     UserResponse,
 )
@@ -87,6 +88,33 @@ async def refresh_token(
 
     return TokenResponse(
         access_token=jwt.create_access_token(user.id, club_id, role),
+        refresh_token=jwt.create_refresh_token(user.id),
+    )
+
+
+@router.post("/select-club", response_model=TokenResponse)
+async def select_club(
+    body: SelectClubRequest,
+    user: CurrentUser,
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Re-issue an access token scoped to the chosen club.
+
+    Used when a user belongs to multiple clubs and picks/switches the active one.
+    Verifies the user is actually a member of the requested club.
+    """
+    user_repo = SQLAlchemyUserRepository(session)
+    membership = await user_repo.get_membership(user.id, body.club_id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this club",
+        )
+
+    return TokenResponse(
+        access_token=jwt.create_access_token(
+            user.id, membership.club_id, membership.role.value
+        ),
         refresh_token=jwt.create_refresh_token(user.id),
     )
 

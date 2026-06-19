@@ -21,6 +21,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class SelectClubRequest(BaseModel):
+    club_id: str
+
+
 class UserResponse(BaseModel):
     id: str
     email: str

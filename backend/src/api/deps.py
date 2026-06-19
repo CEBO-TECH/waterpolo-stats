@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.adapters.auth.jwt_adapter import JWTAdapter, TokenPayload
 from src.adapters.persistence.database import get_async_session
 from src.adapters.persistence.repositories import (
+    SQLAlchemyAgeCategoryRepository,
     SQLAlchemyClubConfigRepository,
+    SQLAlchemyClubInvitationRepository,
     SQLAlchemyClubRepository,
     SQLAlchemyEventRepository,
     SQLAlchemyMatchRepository,
@@ -17,7 +19,9 @@ from src.adapters.persistence.repositories import (
     SQLAlchemyRosterRepository,
     SQLAlchemySeasonRepository,
     SQLAlchemySettingsRepository,
+    SQLAlchemySubstitutionRepository,
     SQLAlchemyUserRepository,
+    SQLAlchemyVoiceNoteRepository,
     SQLAlchemyYouTubeStreamRepository,
 )
 from src.domain.models import ClubMembership, User, UserRole
@@ -137,6 +141,18 @@ def get_config_repo(session: DBSession) -> SQLAlchemyClubConfigRepository:
 def get_youtube_repo(session: DBSession) -> SQLAlchemyYouTubeStreamRepository:
     return SQLAlchemyYouTubeStreamRepository(session)
 
+def get_age_category_repo(session: DBSession) -> SQLAlchemyAgeCategoryRepository:
+    return SQLAlchemyAgeCategoryRepository(session)
+
+def get_substitution_repo(session: DBSession) -> SQLAlchemySubstitutionRepository:
+    return SQLAlchemySubstitutionRepository(session)
+
+def get_invitation_repo(session: DBSession) -> SQLAlchemyClubInvitationRepository:
+    return SQLAlchemyClubInvitationRepository(session)
+
+def get_voice_note_repo(session: DBSession) -> SQLAlchemyVoiceNoteRepository:
+    return SQLAlchemyVoiceNoteRepository(session)
+
 
 PlayerRepo = Annotated[SQLAlchemyPlayerRepository, Depends(get_player_repo)]
 MatchRepo = Annotated[SQLAlchemyMatchRepository, Depends(get_match_repo)]
@@ -148,3 +164,7 @@ UserRepo = Annotated[SQLAlchemyUserRepository, Depends(get_user_repo)]
 SeasonRepo = Annotated[SQLAlchemySeasonRepository, Depends(get_season_repo)]
 ConfigRepo = Annotated[SQLAlchemyClubConfigRepository, Depends(get_config_repo)]
 YouTubeRepo = Annotated[SQLAlchemyYouTubeStreamRepository, Depends(get_youtube_repo)]
+AgeCategoryRepo = Annotated[SQLAlchemyAgeCategoryRepository, Depends(get_age_category_repo)]
+SubstitutionRepo = Annotated[SQLAlchemySubstitutionRepository, Depends(get_substitution_repo)]
+InvitationRepo = Annotated[SQLAlchemyClubInvitationRepository, Depends(get_invitation_repo)]
+VoiceNoteRepo = Annotated[SQLAlchemyVoiceNoteRepository, Depends(get_voice_note_repo)]

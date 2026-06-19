@@ -3,6 +3,20 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
+# --- Object storage port (voice notes audio) ---
+
+
+class StoragePort(ABC):
+    @abstractmethod
+    def put(self, key: str, data: bytes, content_type: str) -> None: ...
+
+    @abstractmethod
+    def get_bytes(self, key: str) -> bytes | None: ...
+
+    @abstractmethod
+    def delete(self, key: str) -> None: ...
+
+
 # --- YouTube Port ---
 
 

@@ -1,8 +1,12 @@
 """Convert between SQLAlchemy ORM models and domain dataclasses."""
 
 from src.domain.models import (
+    AgeCategory,
     Club,
     ClubConfig,
+    ClubInvitation,
+    Substitution,
+    VoiceNote,
     ClubMembership,
     ClubSettings,
     ClubType,
@@ -59,12 +63,42 @@ def player_to_domain(m: orm.PlayerModel) -> Player:
     return Player(
         id=m.id, club_id=m.club_id, player_id=m.player_id,
         number=m.number, name=m.name, team=m.team,
+        birth_year=m.birth_year, email=m.email, user_id=m.user_id,
         created_at=m.created_at, updated_at=m.updated_at,
     )
 
 
 def player_age_cat_to_domain(m: orm.PlayerAgeCategoryModel) -> PlayerAgeCategory:
     return PlayerAgeCategory(id=m.id, player_id=m.player_id, age_category=m.age_category)
+
+
+def age_category_to_domain(m: orm.AgeCategoryModel) -> AgeCategory:
+    return AgeCategory(
+        id=m.id, club_id=m.club_id, name=m.name,
+        sort_order=m.sort_order, created_at=m.created_at,
+    )
+
+
+def substitution_to_domain(m: orm.SubstitutionModel) -> Substitution:
+    return Substitution(
+        id=m.id, club_id=m.club_id, match_id=m.match_id, player_id=m.player_id,
+        direction=m.direction, quarter=m.quarter, timestamp=m.timestamp,
+    )
+
+
+def voice_note_to_domain(m: orm.VoiceNoteModel) -> VoiceNote:
+    return VoiceNote(
+        id=m.id, club_id=m.club_id, match_id=m.match_id, audio_key=m.audio_key,
+        content_type=m.content_type, duration_s=m.duration_s, player_id=m.player_id,
+        note=m.note, created_by=m.created_by, created_at=m.created_at,
+    )
+
+
+def invitation_to_domain(m: orm.ClubInvitationModel) -> ClubInvitation:
+    return ClubInvitation(
+        id=m.id, club_id=m.club_id, email=m.email, role=UserRole(m.role),
+        token=m.token, status=m.status, created_at=m.created_at,
+    )
 
 
 def season_to_domain(m: orm.SeasonModel) -> Season:
@@ -82,7 +116,7 @@ def match_to_domain(m: orm.MatchModel) -> Match:
         date=m.date, opponent=m.opponent, place=m.place,
         age_category=m.age_category,
         status=MatchStatus(m.status), archived=m.archived,
-        season_id=m.season_id,
+        season_id=m.season_id, mvp_player_id=m.mvp_player_id,
         q1_my=m.q1_my, q1_opp=m.q1_opp,
         q2_my=m.q2_my, q2_opp=m.q2_opp,
         q3_my=m.q3_my, q3_opp=m.q3_opp,

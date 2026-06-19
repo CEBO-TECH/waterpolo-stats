@@ -37,3 +37,9 @@ next-env.d.ts
 prisma/dev.db
 prisma/dev.db-journal
 
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+

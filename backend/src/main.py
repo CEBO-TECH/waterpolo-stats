@@ -5,16 +5,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
 from src.api.routes import (
+    age_categories,
     auth,
     bootstrap,
     clubs,
     config,
+    dashboard,
     events,
     matches,
+    me as me_routes,
     players,
     seasons,
     settings as settings_routes,
     stats,
+    substitutions,
+    voice_notes,
     youtube,
 )
 
@@ -44,6 +49,7 @@ def create_app() -> FastAPI:
     # Register routes
     app.include_router(auth.router)
     app.include_router(clubs.router)
+    app.include_router(clubs.invitations_router)
     app.include_router(bootstrap.router)
     app.include_router(settings_routes.router)
     app.include_router(players.router)
@@ -53,6 +59,11 @@ def create_app() -> FastAPI:
     app.include_router(seasons.router)
     app.include_router(youtube.router)
     app.include_router(config.router)
+    app.include_router(age_categories.router)
+    app.include_router(dashboard.router)
+    app.include_router(substitutions.router)
+    app.include_router(me_routes.router)
+    app.include_router(voice_notes.router)
 
     return app
 

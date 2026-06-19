@@ -10,6 +10,9 @@ class Player:
     number: int
     name: str
     team: str = "my"
+    birth_year: int | None = None
+    email: str | None = None
+    user_id: str | None = None  # linked User account (role PLAYER)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 

@@ -55,6 +55,18 @@ class UserModel(Base):
     memberships = relationship("ClubMembershipModel", back_populates="user")
 
 
+class ClubInvitationModel(Base):
+    __tablename__ = "club_invitations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    club_id: Mapped[str] = mapped_column(String, ForeignKey("clubs.id"), nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="player")
+    token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class ClubMembershipModel(Base):
     __tablename__ = "club_memberships"
     __table_args__ = (UniqueConstraint("user_id", "club_id"),)
@@ -114,6 +126,9 @@ class PlayerModel(Base):
     number: Mapped[int] = mapped_column(Integer, default=0)
     name: Mapped[str] = mapped_column(String, nullable=False)
     team: Mapped[str] = mapped_column(String, default="my")
+    birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -133,6 +148,53 @@ class PlayerAgeCategoryModel(Base):
     player = relationship("PlayerModel", back_populates="age_categories")
 
 
+class AgeCategoryModel(Base):
+    """Per-club age category dictionary (e.g. U17, Seniorzy)."""
+    __tablename__ = "age_categories"
+    __table_args__ = (UniqueConstraint("club_id", "name"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    club_id: Mapped[str] = mapped_column(String, ForeignKey("clubs.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class VoiceNoteModel(Base):
+    """Audio note attached to a match (optionally a player)."""
+    __tablename__ = "voice_notes"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    club_id: Mapped[str] = mapped_column(String, ForeignKey("clubs.id"), nullable=False)
+    match_id: Mapped[str] = mapped_column(
+        String, ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False
+    )
+    player_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    audio_key: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, default="audio/webm")
+    duration_s: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[str] = mapped_column(String, default="")
+    created_by: Mapped[str] = mapped_column(String, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class SubstitutionModel(Base):
+    """Player in/out-of-water events for play-time tracking."""
+    __tablename__ = "substitutions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    club_id: Mapped[str] = mapped_column(String, ForeignKey("clubs.id"), nullable=False)
+    match_id: Mapped[str] = mapped_column(
+        String, ForeignKey("matches.match_id", ondelete="CASCADE"), nullable=False
+    )
+    player_id: Mapped[str] = mapped_column(
+        String, ForeignKey("players.player_id", ondelete="CASCADE"), nullable=False
+    )
+    direction: Mapped[str] = mapped_column(String, nullable=False)  # "in" | "out"
+    quarter: Mapped[int] = mapped_column(Integer, default=1)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 # ──────────────────────── EXISTING: Matches ──────────────────────
 
 
@@ -149,6 +211,7 @@ class MatchModel(Base):
     status: Mapped[str] = mapped_column(String, default="active")
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     season_id: Mapped[str | None] = mapped_column(String, ForeignKey("seasons.id"), nullable=True)
+    mvp_player_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Cumulative quarter scores
     q1_my: Mapped[int] = mapped_column(Integer, default=0)
     q1_opp: Mapped[int] = mapped_column(Integer, default=0)

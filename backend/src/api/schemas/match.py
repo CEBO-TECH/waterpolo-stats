@@ -21,6 +21,11 @@ class MatchResponse(BaseModel):
     place: str
     age_category: str = "Seniorzy"
     status: str
+    roster_count: int = 0
+
+
+class RosterReplaceRequest(BaseModel):
+    roster: list[dict] = []  # [{player_id, number, name, team}]
 
 
 class MatchEditRequest(BaseModel):

@@ -1,9 +1,9 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.domain.models import ClubMembership, User
+from src.domain.models import ClubMembership, User, UserRole
 from src.domain.ports.repositories import UserRepository
 
 from ..converters import membership_to_domain, user_to_domain
@@ -68,3 +68,46 @@ class SQLAlchemyUserRepository(UserRepository):
         self.session.add(model)
         await self.session.flush()
         return membership_to_domain(model)
+
+    async def list_members(self, club_id: str) -> list[tuple[ClubMembership, str]]:
+        result = await self.session.execute(
+            select(ClubMembershipModel, UserModel.email)
+            .join(UserModel, UserModel.id == ClubMembershipModel.user_id)
+            .where(ClubMembershipModel.club_id == club_id)
+            .order_by(ClubMembershipModel.created_at.asc())
+        )
+        return [(membership_to_domain(mm), email) for mm, email in result.all()]
+
+    async def update_membership_role(
+        self, user_id: str, club_id: str, role: UserRole
+    ) -> ClubMembership | None:
+        await self.session.execute(
+            update(ClubMembershipModel)
+            .where(
+                ClubMembershipModel.user_id == user_id,
+                ClubMembershipModel.club_id == club_id,
+            )
+            .values(role=role.value)
+        )
+        await self.session.flush()
+        return await self.get_membership(user_id, club_id)
+
+    async def delete_membership(self, user_id: str, club_id: str) -> None:
+        await self.session.execute(
+            delete(ClubMembershipModel)
+            .where(
+                ClubMembershipModel.user_id == user_id,
+                ClubMembershipModel.club_id == club_id,
+            )
+        )
+
+    async def count_owners(self, club_id: str) -> int:
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(ClubMembershipModel)
+            .where(
+                ClubMembershipModel.club_id == club_id,
+                ClubMembershipModel.role == UserRole.OWNER.value,
+            )
+        )
+        return result.scalar_one()

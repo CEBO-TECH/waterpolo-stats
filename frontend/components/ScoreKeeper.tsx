@@ -1,8 +1,18 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { AppState, Player, RecentEvent } from '@/lib/types';
+import VideoModal from '@/components/VideoModal';
+import VoiceNotes from '@/components/VoiceNotes';
+
+type PlaytimeEntry = { seconds: number; on_water: boolean; stint_start: string | null };
+
+function fmtTime(total: number): string {
+  const s = Math.max(0, Math.floor(total));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
 
 type Props = {
   state: AppState;
@@ -57,6 +67,76 @@ export default function ScoreKeeper({
   refreshEvents, refreshStats, note, setNote,
 }: Props) {
   const isActive = state.matches.find(m => m.match_id === state.settings?.ActiveMatch)?.status === 'active';
+  const matchId = state.settings?.ActiveMatch || '';
+  const youtube = state.youtube;
+  const streamSynced = !!youtube?.stream_start_time;
+
+  const [video, setVideo] = useState<{ video_id: string; seek_seconds: number } | null>(null);
+  const [streamBusy, setStreamBusy] = useState(false);
+
+  const [playtime, setPlaytime] = useState<Record<string, PlaytimeEntry>>({});
+  const [playtimeAt, setPlaytimeAt] = useState<number>(Date.now());
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+
+  const loadPlaytime = useCallback(async () => {
+    if (!matchId) return;
+    const data = await api.getPlaytime(matchId);
+    setPlaytime(data.players || {});
+    setPlaytimeAt(Date.now());
+  }, [matchId]);
+
+  useEffect(() => { loadPlaytime(); }, [loadPlaytime]);
+
+  // Tick every second so the on-water counters advance.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const displaySeconds = (playerId: string): number => {
+    const e = playtime[playerId];
+    if (!e) return 0;
+    const extra = e.on_water ? (nowTick - playtimeAt) / 1000 : 0;
+    return e.seconds + extra;
+  };
+
+  const toggleWater = async (p: Player, toWater: boolean) => {
+    if (!isActive) return showToast('Mecz zakończony');
+    try {
+      await api.recordSubstitution(matchId, p.player_id, toWater ? 'in' : 'out', state.settings?.Quarter || 1);
+      await loadPlaytime();
+    } catch (e: any) {
+      showToast(e.message || 'Błąd');
+    }
+  };
+
+  const setStreamStartNow = async () => {
+    if (!matchId || !youtube?.youtube_url) return;
+    setStreamBusy(true);
+    try {
+      const res = await api.attachYouTube(matchId, youtube.youtube_url, { startNow: true });
+      setState(prev => ({ ...prev, youtube: res }));
+      showToast('Ustawiono start streamu');
+    } catch (e: any) {
+      showToast(e.message || 'Błąd');
+    } finally {
+      setStreamBusy(false);
+    }
+  };
+
+  const openVideo = async (eventId: string) => {
+    if (!matchId) return;
+    try {
+      const res = await api.getEventVideoUrl(matchId, eventId);
+      if (res?.video_id != null) {
+        setVideo({ video_id: res.video_id, seek_seconds: res.seek_seconds || 0 });
+      } else {
+        showToast('Brak znacznika wideo');
+      }
+    } catch {
+      showToast('Brak znacznika wideo');
+    }
+  };
 
   const selectPlayer = (p: Player) => {
     if (!isActive) return;
@@ -98,23 +178,48 @@ export default function ScoreKeeper({
     <button className="btn" onClick={() => submitEvent(action)}>{label}</button>
   );
 
+  const waterPlayers = state.rosterActive.filter(p => playtime[p.player_id]?.on_water);
+  const benchPlayers = state.rosterActive.filter(p => !playtime[p.player_id]?.on_water);
+
+  const PlayerCard = ({ p, inWater }: { p: Player; inWater: boolean }) => (
+    <div
+      className={`player${state.selected?.player_id === p.player_id ? ' active' : ''}${!isActive ? ' disabled' : ''}`}
+      onClick={() => selectPlayer(p)}
+    >
+      <div className="num">{p.number}</div>
+      <div className="name">{p.name}</div>
+      <div className="player-meta">
+        {inWater && <span className="player-time">{fmtTime(displaySeconds(p.player_id))}</span>}
+        <button
+          className={`sub-arrow${inWater ? ' sub-arrow--out' : ' sub-arrow--in'}`}
+          onClick={e => { e.stopPropagation(); toggleWater(p, !inWater); }}
+          title={inWater ? 'Zejście (na ławkę)' : 'Wejście (do wody)'}
+          disabled={!isActive}
+        >
+          {inWater ? '▼' : '▲'}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="main-layout">
-      {/* Player sidebar */}
+      {/* Player sidebar — WODA / ŁAWKA */}
       <div className="players-sidebar">
         {state.rosterActive.length === 0 ? (
           <div className="muted" style={{ padding: 12 }}>Brak składu</div>
         ) : (
-          state.rosterActive.map(p => (
-            <div
-              key={p.player_id}
-              className={`player${state.selected?.player_id === p.player_id ? ' active' : ''}${!isActive ? ' disabled' : ''}`}
-              onClick={() => selectPlayer(p)}
-            >
-              <div className="num">{p.number}</div>
-              <div className="name">{p.name}</div>
+          <>
+            <div className="lineup-section">
+              <div className="lineup-label lineup-label--water">WODA ({waterPlayers.length})</div>
+              {waterPlayers.length === 0 && <div className="muted small" style={{ padding: '4px 8px' }}>—</div>}
+              {waterPlayers.map(p => <PlayerCard key={p.player_id} p={p} inWater />)}
             </div>
-          ))
+            <div className="lineup-section">
+              <div className="lineup-label">ŁAWKA ({benchPlayers.length})</div>
+              {benchPlayers.map(p => <PlayerCard key={p.player_id} p={p} inWater={false} />)}
+            </div>
+          </>
         )}
       </div>
 
@@ -228,6 +333,28 @@ export default function ScoreKeeper({
           </div>
         </div>
 
+        {/* Stream bar */}
+        {youtube?.youtube_url && (
+          <div className="stream-bar">
+            {streamSynced ? (
+              <>
+                <span style={{ color: 'var(--green)' }}>● Stream zsynchronizowany</span>
+                <span className="muted small">— kliknij ▶ przy akcji, aby zobaczyć powtórkę</span>
+                <button className="btn small" style={{ marginLeft: 'auto' }} onClick={setStreamStartNow} disabled={streamBusy}>
+                  Ustaw start ponownie
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="muted">Stream podpięty, brak startu.</span>
+                <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={setStreamStartNow} disabled={streamBusy}>
+                  ▶ Ustaw start streamu = teraz
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Recent events */}
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -243,6 +370,15 @@ export default function ScoreKeeper({
                   <span className="event-quarter">Q{ev.quarter}</span>
                   <span className="event-action">{ev.action}</span>
                   <span className="event-player">{ev.player_name}</span>
+                  {streamSynced && (
+                    <button
+                      className="btn small event-video-btn"
+                      onClick={() => openVideo(ev.id)}
+                      title="Powtórka wideo"
+                    >
+                      ▶
+                    </button>
+                  )}
                   {isActive && (
                     <button
                       className="btn small danger"
@@ -256,7 +392,25 @@ export default function ScoreKeeper({
             )}
           </div>
         </div>
+
+        {/* Voice notes */}
+        {matchId && (
+          <VoiceNotes
+            matchId={matchId}
+            showToast={showToast}
+            canRecord={isActive}
+            playerId={state.selected?.player_id}
+          />
+        )}
       </div>
+
+      {video && (
+        <VideoModal
+          videoId={video.video_id}
+          seekSeconds={video.seek_seconds}
+          onClose={() => setVideo(null)}
+        />
+      )}
     </div>
   );
 }
