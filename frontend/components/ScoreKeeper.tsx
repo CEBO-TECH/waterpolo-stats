@@ -102,9 +102,19 @@ export default function ScoreKeeper({
 
   const toggleWater = async (p: Player, toWater: boolean) => {
     if (!isActive) return showToast('Mecz zakończony');
+    // Optimistic local update so WODA/ŁAWKA persists immediately (and offline).
+    setPlaytime(prev => ({
+      ...prev,
+      [p.player_id]: {
+        seconds: prev[p.player_id]?.seconds || 0,
+        on_water: toWater,
+        stint_start: toWater ? new Date().toISOString() : null,
+      },
+    }));
+    setPlaytimeAt(Date.now());
     try {
-      await api.recordSubstitution(matchId, p.player_id, toWater ? 'in' : 'out', state.settings?.Quarter || 1);
-      await loadPlaytime();
+      const r = await api.recordSubstitution(matchId, p.player_id, toWater ? 'in' : 'out', state.settings?.Quarter || 1);
+      if (!r?.queued) await loadPlaytime();
     } catch (e: any) {
       showToast(e.message || 'Błąd');
     }
@@ -150,14 +160,14 @@ export default function ScoreKeeper({
     const flags = getFlag(action, attackMode === 'man_up');
 
     try {
-      await api.createEvents([{
+      const r = await api.createEvents([{
         player_id: state.selected.player_id,
         player_name: state.selected.name,
         note,
         ...flags,
       }]);
       setNote('');
-      showToast('Zapisano');
+      showToast(r?.queued ? 'Zapisano offline ⏳' : 'Zapisano');
       refreshEvents();
     } catch (e: any) {
       showToast(e.message || 'Błąd');
@@ -171,6 +181,16 @@ export default function ScoreKeeper({
       refreshEvents();
     } catch (e: any) {
       showToast(e.message || 'Błąd');
+    }
+  };
+
+  const undoLast = async () => {
+    try {
+      await api.undoEvent(5);
+      showToast('Cofnięto ostatnią akcję');
+      refreshEvents();
+    } catch {
+      showToast('Nic do cofnięcia');
     }
   };
 
@@ -226,10 +246,15 @@ export default function ScoreKeeper({
       {/* Actions */}
       <div className="actions-main">
         <div className="panel">
-          <div className="muted" style={{ marginBottom: 12 }}>
-            Wybrany: <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
-              {state.selected ? `#${state.selected.number} ${state.selected.name}` : '—'}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <div className="muted" style={{ flex: 1 }}>
+              Wybrany: <span style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                {state.selected ? `#${state.selected.number} ${state.selected.name}` : '—'}
+              </span>
+            </div>
+            {isActive && (
+              <button className="btn small" onClick={undoLast} title="Cofnij ostatnią akcję">↶ Cofnij</button>
+            )}
           </div>
 
           {/* Attack mode toggle */}

@@ -148,7 +148,7 @@ export default function LoginPage({ onLogin }: Props) {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleAuth}>
-        <h1>WaterPolo Stats</h1>
+        <h1>Cap Track</h1>
         <p className="subtitle">
           {isRegister ? 'Utwórz konto i klub' : 'Zaloguj się do platformy'}
         </p>

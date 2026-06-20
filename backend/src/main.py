@@ -31,11 +31,13 @@ def create_app() -> FastAPI:
         description="Professional water polo statistics platform",
     )
 
-    # CORS — uses regex for dev (any localhost port), explicit list for production
+    # CORS — explicit list for production web + regex covering dev (any localhost
+    # port) and Capacitor/Ionic native WebView origins (iOS uses capacitor://localhost,
+    # Android uses http(s)://localhost).
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
-        allow_origin_regex=r"https?://localhost(:\d+)?",
+        allow_origin_regex=r"(https?|capacitor|ionic)://localhost(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

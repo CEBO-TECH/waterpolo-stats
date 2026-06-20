@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'tech.cebo.waterpolo',
-  appName: 'WaterPolo Stats',
+  appName: 'Cap Track',
   webDir: 'out',
   server: {
     // In production: uses bundled web assets from 'out/'

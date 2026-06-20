@@ -7,7 +7,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>WaterPolo Stats</string>
+        <string>Cap Track</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Cap Track używa mikrofonu do nagrywania notatek głosowych podczas meczu.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

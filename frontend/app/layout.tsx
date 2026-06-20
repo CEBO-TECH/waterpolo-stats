@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'WaterPolo Stats',
-  description: 'Profesjonalna platforma statystyk piłki wodnej',
+  title: 'Cap Track',
+  description: 'Cap Track — statystyki piłki wodnej na żywo',
 };
 
 export const viewport: Viewport = {

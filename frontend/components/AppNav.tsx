@@ -94,7 +94,7 @@ export default function AppNav({
     <nav className={`app-nav app-nav--${variant}`} aria-label="Nawigacja główna">
       <div className="app-nav__brand">
         <span className="app-nav__logo">🤽</span>
-        <span className="app-nav__title">WTS Stats</span>
+        <span className="app-nav__title">Cap Track</span>
         {variant === 'drawer' && (
           <button className="app-nav__close" onClick={onClose} aria-label="Zamknij menu">✕</button>
         )}

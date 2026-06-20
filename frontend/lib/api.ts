@@ -181,11 +181,7 @@ class ApiClient {
   }
 
   async setQuarter(quarter: number) {
-    const res = await this.fetch(this.clubUrl('/settings/quarter'), {
-      method: 'PUT',
-      body: JSON.stringify({ quarter }),
-    });
-    return res.json();
+    return this.resilientWrite(this.clubUrl('/settings/quarter'), 'PUT', { quarter });
   }
 
   // ─── Players ───
@@ -298,10 +294,7 @@ class ApiClient {
   }
 
   async endMatch(matchId: string) {
-    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/end`), {
-      method: 'POST',
-    });
-    return res.json();
+    return this.resilientWrite(this.clubUrl(`/matches/${matchId}/end`), 'POST');
   }
 
   async archiveMatch(matchId: string) {
@@ -331,21 +324,38 @@ class ApiClient {
   }
 
   async updateScore(matchId: string, quarter: string, myScore: number, oppScore: number) {
-    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/scores`), {
-      method: 'POST',
-      body: JSON.stringify({ quarter, my_score: myScore, opp_score: oppScore }),
+    return this.resilientWrite(this.clubUrl(`/matches/${matchId}/scores`), 'POST', {
+      quarter, my_score: myScore, opp_score: oppScore,
     });
-    return res.json();
   }
 
   // ─── Events ───
 
+  /**
+   * Match-critical write. Tries the request; on a network/offline failure it
+   * queues the request for automatic retry (heartbeat) instead of losing it,
+   * and resolves with { queued: true } so the UI can show optimistic feedback.
+   */
+  private async resilientWrite(url: string, method: string, payload?: any) {
+    const headers = this.headers();
+    const body = payload != null ? JSON.stringify(payload) : undefined;
+    try {
+      const res = await fetch(url, { method, headers, body, cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json().catch(() => ({}));
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        const { getOfflineQueue } = await import('./offline-queue');
+        const localId = `q_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        getOfflineQueue().addToQueueWithLocalId(url, { method, headers, body }, localId);
+        return { queued: true };
+      }
+      throw e;
+    }
+  }
+
   async createEvents(events: any[]) {
-    const res = await this.fetch(this.clubUrl('/events'), {
-      method: 'POST',
-      body: JSON.stringify({ events }),
-    });
-    return res.json();
+    return this.resilientWrite(this.clubUrl('/events'), 'POST', { events });
   }
 
   async getEvents(matchId: string, limit = 20) {
@@ -354,10 +364,7 @@ class ApiClient {
   }
 
   async deleteEvent(eventId: string) {
-    const res = await this.fetch(this.clubUrl(`/events/${eventId}`), {
-      method: 'DELETE',
-    });
-    return res.json();
+    return this.resilientWrite(this.clubUrl(`/events/${eventId}`), 'DELETE');
   }
 
   // ─── Substitutions / play-time ───
@@ -369,20 +376,13 @@ class ApiClient {
   }
 
   async recordSubstitution(matchId: string, playerId: string, direction: 'in' | 'out', quarter = 1) {
-    const res = await this.fetch(this.clubUrl(`/matches/${matchId}/substitutions`), {
-      method: 'POST',
-      body: JSON.stringify({ player_id: playerId, direction, quarter }),
+    return this.resilientWrite(this.clubUrl(`/matches/${matchId}/substitutions`), 'POST', {
+      player_id: playerId, direction, quarter,
     });
-    if (!res.ok) throw new Error('Nie udało się zapisać zmiany');
-    return res.json();
   }
 
   async undoEvent(windowMinutes = 3) {
-    const res = await this.fetch(this.clubUrl('/events/undo'), {
-      method: 'POST',
-      body: JSON.stringify({ window_minutes: windowMinutes }),
-    });
-    return res.json();
+    return this.resilientWrite(this.clubUrl('/events/undo'), 'POST', { window_minutes: windowMinutes });
   }
 
   // ─── Stats ───

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { AppState, ClubInfo, Mode } from '@/lib/types';
+import { AppState, ClubInfo, Mode, Settings } from '@/lib/types';
 import { useOfflineQueue } from '@/lib/useOfflineQueue';
 import LoginPage from '@/components/LoginPage';
 import AppNav from '@/components/AppNav';
@@ -169,7 +169,13 @@ export default function Home() {
     }
     try {
       const settings = await api.setQuarter(q);
-      setState(prev => ({ ...prev, settings }));
+      // When queued offline the response has no Quarter — update it optimistically.
+      setState(prev => ({
+        ...prev,
+        settings: settings?.queued
+          ? { ...(prev.settings as Settings), Quarter: q }
+          : settings,
+      }));
     } catch (e: any) {
       showToast(e.message || 'Błąd');
     }
