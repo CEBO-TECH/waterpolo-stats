@@ -72,3 +72,17 @@ export type YouTubeInfo = {
 };
 
 export type Mode = 'dashboard' | 'score' | 'stats' | 'admin' | 'players' | 'matches' | 'users';
+
+// Result of POST /voice/parse — a spoken command resolved to an event.
+export type ParsedVoiceCommand = {
+  matched: boolean;
+  transcript: string;
+  player_id?: string;
+  player_name?: string;
+  number?: number;
+  flag?: string;
+  label?: string;
+  confidence?: number;
+  source?: string; // "deterministic" | "claude"
+  reason?: string;
+};

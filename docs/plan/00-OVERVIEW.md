@@ -48,6 +48,7 @@ Każdy plik = jedna spójna funkcja (epik) z planem wdrożenia. Implementujemy *
 | Sugerowanie MVP po meczu | `11-mvp-po-meczu.md` | NOWE |
 | Konta zawodników + rocznik + logowanie zawodnika | `12-konta-zawodnikow.md` | NOWE (Player ≠ User) |
 | Zmiany i czas gry (woda/ławka, strzałki) | `13-zmiany-i-czas-gry.md` | NOWE |
+| Sterowanie głosem (agent komend) | `14-sterowanie-glosem.md` | NOWE (Web Speech + parser + Claude Haiku) |
 
 ## Proponowana kolejność implementacji (z zależnościami)
 
@@ -83,3 +84,4 @@ budować na nich analizę i funkcje zaawansowane. Można modyfikować.
 - [x] 07 Konta klubu + userzy — członkowie (`GET/PATCH/DELETE members` + guard ostatniego ownera), rozszerzony `/invite` (istniejący→od razu, nowy→`ClubInvitation` z tokenem), `GET/DELETE invitations`, `POST /v1/invitations/{token}/accept`; `UsersPanel` (lista/role/usuwanie/zaproszenia+link), nav „Użytkownicy” (owner/coach), obsługa `?invite=` po loginie. Migracja `club_invitations`.
 - [x] 12 Konta zawodników — `Player.birth_year/email/user_id` + migracja; powiązanie konta przez przyjęcie zaproszenia (auto-link po emailu); `GET /me/player` + `GET /me/matches`; PlayersPanel: rocznik/email + „Zaproś”/„✓ konto”; `PlayerView` — zawodnik (rola PLAYER) widzi tylko swoje statystyki i mecze (bez paneli zarządzania).
 - [x] 05 Notatki głosowe — encja `VoiceNote` + migracja; `StoragePort` z `LocalStorageAdapter` (dev/test) i `S3StorageAdapter` (MinIO/S3, prod, boto3 lazy); `POST/GET/DELETE voice-notes` + `GET .../audio` (proxy z auth); MinIO w `docker-compose.prod.yaml`; `VoiceNotes` w ScoreKeeper (nagrywanie MediaRecorder + lista + odtwarzanie). Bez transkrypcji (świadoma decyzja).
+- [x] 14 Sterowanie głosem — agent komend: `VoiceCommandPort`/`ParsedCommand`, parser deterministyczny (`VoiceCommandService`, liczebniki PL + mapa słów→flaga), warstwa Claude Haiku 4.5 (`ClaudeVoiceCommandAdapter`, structured output, leniwy import), `POST /voice/parse` (parser→Claude→rozwiązanie numeru wg składu); frontend: `parseVoiceCommand`, `VoiceCommand.tsx` (Web Speech pl‑PL + chip potwierdzenia z auto‑zapisem), integracja w ScoreKeeper → `createEvents` (offline‑resilient). Config `VOICE_NLU_BACKEND`/`ANTHROPIC_API_KEY`/`ANTHROPIC_NLU_MODEL`. 12 testów parsera + 3 API.

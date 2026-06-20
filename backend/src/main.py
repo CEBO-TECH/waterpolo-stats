@@ -48,6 +48,7 @@ from src.api.routes import (
     settings as settings_routes,
     stats,
     substitutions,
+    voice,
     voice_notes,
     youtube,
 )
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     app.include_router(substitutions.router)
     app.include_router(me_routes.router)
     app.include_router(voice_notes.router)
+    app.include_router(voice.router)
 
     return app
 

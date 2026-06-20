@@ -8,6 +8,7 @@ from .playtime_service import PlaytimeService
 from .player_profile_service import PlayerProfileService
 from .stats_service import StatsService
 from .team_stats_service import TeamStatsService
+from .voice_command_service import VoiceCommandService
 from .youtube_service import YouTubeService
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "PlayerProfileService",
     "StatsService",
     "TeamStatsService",
+    "VoiceCommandService",
     "YouTubeService",
 ]

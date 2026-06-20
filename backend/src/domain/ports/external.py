@@ -74,6 +74,38 @@ class MatchReport:
     sections: list[dict]  # [{title, content, stats}]
 
 
+# --- Voice command agent (głosowe wpisywanie zdarzeń) ---
+
+
+@dataclass
+class ParsedCommand:
+    """A spoken command resolved to one event flag + a cap number.
+
+    `flag` is one of EVENT_FLAG_FIELDS; `number` is the player's cap number
+    (may be None if the utterance named an action but no recognisable number).
+    `confidence` ∈ [0, 1]; `source` is "deterministic" or "claude".
+    """
+
+    flag: str
+    number: int | None
+    confidence: float
+    source: str = "deterministic"
+
+
+class VoiceCommandPort(ABC):
+    @abstractmethod
+    async def parse(
+        self, transcript: str, numbers: list[int], flag_labels: dict[str, str]
+    ) -> ParsedCommand | None:
+        """Map a free-form Polish utterance to a ParsedCommand.
+
+        `numbers` are the cap numbers currently on the roster (helps disambiguate);
+        `flag_labels` maps each valid flag field to its Polish label. Returns None
+        when nothing actionable was understood.
+        """
+        ...
+
+
 class AIAnalysisPort(ABC):
     @abstractmethod
     async def analyze_match(

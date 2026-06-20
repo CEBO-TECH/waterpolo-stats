@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     # Run `alembic upgrade head` automatically on app startup (Postgres only).
     AUTO_MIGRATE: bool = True
 
+    # Voice command agent (głosowe wpisywanie zdarzeń).
+    # "deterministic" = tylko parser regułowy (offline, bez API).
+    # "claude" = parser regułowy + warstwa Claude dla swobodnych komend.
+    VOICE_NLU_BACKEND: str = "claude"
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_NLU_MODEL: str = "claude-haiku-4-5"
+
     # Voice-note object storage. "local" (dev/test) or "s3" (MinIO / S3 in prod).
     STORAGE_BACKEND: str = "local"
     VOICE_STORAGE_DIR: str = "/tmp/wts_voice_notes"

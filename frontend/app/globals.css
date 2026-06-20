@@ -1087,3 +1087,96 @@ label {
 .mvp-hero__name { font-size: 22px; font-weight: 800; }
 .mvp-hero__score { font-size: 30px; font-weight: 800; color: var(--accent); }
 .rank-row--sel { border-color: var(--accent); background: rgba(76, 201, 240, 0.12); }
+
+/* ── Voice command agent ── */
+.voice-cmd { margin-bottom: 16px; }
+.voice-cmd--unsupported {
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.voice-cmd__mic {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: rgba(76, 201, 240, 0.08);
+  border-radius: var(--radius);
+}
+.voice-cmd__mic:hover { background: rgba(76, 201, 240, 0.16); }
+.voice-cmd__mic:disabled { opacity: 0.5; }
+.voice-cmd__icon { font-size: 22px; line-height: 1; }
+.voice-cmd__mic.listening {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(255, 107, 107, 0.12);
+  animation: voicePulse 1.1s ease-in-out infinite;
+}
+@keyframes voicePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
+}
+
+.voice-confirm {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  animation: fadeInUp 0.18s ease;
+}
+.voice-confirm--error { border-color: var(--yellow); }
+.voice-confirm__main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.voice-confirm__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #000;
+  font-weight: 800;
+}
+.voice-confirm__label { flex: 1; }
+.voice-confirm__warn { font-size: 20px; color: var(--yellow); }
+.voice-confirm__badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(76, 201, 240, 0.18);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.voice-confirm__sub { margin-top: 4px; font-style: italic; }
+.voice-confirm__actions { display: flex; gap: 8px; margin-top: 10px; }
+.voice-confirm__actions .btn { flex: 1; min-height: 40px; }
+.voice-confirm__bar {
+  margin-top: 10px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.voice-confirm__bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}

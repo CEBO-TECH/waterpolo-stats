@@ -5,6 +5,8 @@
  */
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+import type { ParsedVoiceCommand } from '@/lib/types';
+
 class ApiClient {
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -383,6 +385,20 @@ class ApiClient {
 
   async undoEvent(windowMinutes = 3) {
     return this.resilientWrite(this.clubUrl('/events/undo'), 'POST', { window_minutes: windowMinutes });
+  }
+
+  // ─── Voice command agent ───
+
+  /** Resolve a spoken Polish transcript to an event (flag + player). Needs network. */
+  async parseVoiceCommand(transcript: string, matchId?: string): Promise<ParsedVoiceCommand> {
+    const res = await fetch(this.clubUrl('/voice/parse'), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ transcript, match_id: matchId }),
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
   }
 
   // ─── Stats ───

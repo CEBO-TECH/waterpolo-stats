@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { AppState, Player, RecentEvent } from '@/lib/types';
+import { AppState, Player, RecentEvent, ParsedVoiceCommand } from '@/lib/types';
 import VideoModal from '@/components/VideoModal';
 import VoiceNotes from '@/components/VoiceNotes';
+import VoiceCommand from '@/components/VoiceCommand';
 
 type PlaytimeEntry = { seconds: number; on_water: boolean; stint_start: string | null };
 
@@ -194,6 +195,25 @@ export default function ScoreKeeper({
     }
   };
 
+  // Spoken command confirmed → write the event through the same offline-resilient
+  // path as a tap (createEvents). cmd carries player_id + the resolved flag.
+  const submitVoiceCommand = async (cmd: ParsedVoiceCommand) => {
+    if (!isActive) return showToast('Mecz zakończony');
+    if (!cmd.matched || !cmd.player_id || !cmd.flag) return;
+    try {
+      const r = await api.createEvents([{
+        player_id: cmd.player_id,
+        player_name: cmd.player_name,
+        note: '',
+        [cmd.flag]: 1,
+      }]);
+      showToast(r?.queued ? `🎤 #${cmd.number} ${cmd.label} — offline ⏳` : `🎤 #${cmd.number} ${cmd.label}`);
+      refreshEvents();
+    } catch (e: any) {
+      showToast(e.message || 'Błąd');
+    }
+  };
+
   const Btn = ({ action, label }: { action: string; label: string }) => (
     <button className="btn" onClick={() => submitEvent(action)}>{label}</button>
   );
@@ -256,6 +276,16 @@ export default function ScoreKeeper({
               <button className="btn small" onClick={undoLast} title="Cofnij ostatnią akcję">↶ Cofnij</button>
             )}
           </div>
+
+          {/* Voice command — hands-free event entry */}
+          {isActive && (
+            <VoiceCommand
+              matchId={matchId}
+              disabled={!isActive}
+              onConfirm={submitVoiceCommand}
+              showToast={showToast}
+            />
+          )}
 
           {/* Attack mode toggle */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
