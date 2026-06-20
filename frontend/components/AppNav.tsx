@@ -81,11 +81,13 @@ type Props = {
   clubs?: ClubInfo[];
   currentClubId?: string;
   onSwitchClub?: (clubId: string) => void;
+  onCollapse?: () => void;
+  onPin?: () => void;
 };
 
 export default function AppNav({
   mode, onSelect, variant, user, onLogout, onClose,
-  clubs = [], currentClubId = '', onSwitchClub,
+  clubs = [], currentClubId = '', onSwitchClub, onCollapse, onPin,
 }: Props) {
   const currentClub = clubs.find(c => c.club_id === currentClubId) || clubs[0];
   const roleLabel = currentClub ? (ROLE_LABELS[currentClub.role] || currentClub.role) : '';
@@ -95,8 +97,16 @@ export default function AppNav({
       <div className="app-nav__brand">
         <span className="app-nav__logo">🤽</span>
         <span className="app-nav__title">Cap Track</span>
+        {variant === 'sidebar' && onCollapse && (
+          <button className="app-nav__close" onClick={onCollapse} aria-label="Zwiń menu" title="Zwiń menu">«</button>
+        )}
         {variant === 'drawer' && (
-          <button className="app-nav__close" onClick={onClose} aria-label="Zamknij menu">✕</button>
+          <>
+            {onPin && (
+              <button className="app-nav__close" onClick={onPin} aria-label="Przypnij menu" title="Przypnij menu na stałe">»</button>
+            )}
+            <button className="app-nav__close" onClick={onClose} aria-label="Zamknij menu">✕</button>
+          </>
         )}
       </div>
 

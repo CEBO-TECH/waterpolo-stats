@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     INITIAL_ADMIN_EMAIL: str = ""
     INITIAL_ADMIN_PASSWORD: str = ""
 
+    # Run `alembic upgrade head` automatically on app startup (Postgres only).
+    AUTO_MIGRATE: bool = True
+
     # Voice-note object storage. "local" (dev/test) or "s3" (MinIO / S3 in prod).
     STORAGE_BACKEND: str = "local"
     VOICE_STORAGE_DIR: str = "/tmp/wts_voice_notes"

@@ -1,9 +1,38 @@
 """FastAPI application factory."""
 
+import asyncio
+import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
+
+
+def _run_alembic_upgrade() -> None:
+    """Run `alembic upgrade head` (blocking — called in a worker thread)."""
+    from alembic import command
+    from alembic.config import Config
+
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg = Config(os.path.join(backend_dir, "alembic.ini"))
+    cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+    command.upgrade(cfg, "head")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Auto-apply migrations on startup so deploys/dev never need a manual step.
+    # Postgres-only (tests use SQLite + create_all). env.py uses asyncio.run,
+    # so we run it in a thread to avoid nesting event loops.
+    if settings.AUTO_MIGRATE and settings.DATABASE_URL.startswith("postgresql"):
+        try:
+            await asyncio.to_thread(_run_alembic_upgrade)
+            print("[startup] alembic upgrade head — OK")
+        except Exception as e:  # don't block startup if migrations fail
+            print(f"[startup] auto-migration skipped/failed: {e}")
+    yield
 from src.api.routes import (
     age_categories,
     auth,
@@ -26,9 +55,10 @@ from src.api.routes import (
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="WaterPolo Stats API",
+        title="Cap Track API",
         version="1.0.0",
-        description="Professional water polo statistics platform",
+        description="Cap Track — water polo statistics platform",
+        lifespan=lifespan,
     )
 
     # CORS — explicit list for production web + regex covering dev (any localhost

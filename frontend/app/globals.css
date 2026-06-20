@@ -747,6 +747,10 @@ label {
   .burger { display: inline-flex; }
 }
 
+/* Manually collapsed nav (e.g. on iPad during a match for full-width scoring) */
+.app-shell.nav-collapsed .app-nav--sidebar { display: none; }
+.app-shell.nav-collapsed .burger { display: inline-flex; }
+
 /* ── Players panel ── */
 
 .players-toolbar {

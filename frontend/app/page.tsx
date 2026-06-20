@@ -38,6 +38,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(
+    () => typeof window !== 'undefined' && localStorage.getItem('nav_collapsed') === '1',
+  );
+
+  const collapseNav = () => { setNavCollapsed(true); try { localStorage.setItem('nav_collapsed', '1'); } catch {} };
+  const expandNav = () => { setNavCollapsed(false); setDrawerOpen(false); try { localStorage.removeItem('nav_collapsed'); } catch {} };
   const [attackMode, setAttackMode] = useState<'positional' | 'man_up'>('positional');
   const [note, setNote] = useState('');
   const { connectionStatus, queuedRequests, manualSync } = useOfflineQueue();
@@ -276,7 +282,7 @@ export default function Home() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${navCollapsed ? ' nav-collapsed' : ''}`}>
       <AppNav
         mode={mode}
         onSelect={selectMode}
@@ -286,6 +292,7 @@ export default function Home() {
         clubs={state.clubs}
         currentClubId={state.currentClubId}
         onSwitchClub={switchClub}
+        onCollapse={collapseNav}
       />
 
       <div className="app-main">
@@ -381,6 +388,7 @@ export default function Home() {
               clubs={state.clubs}
               currentClubId={state.currentClubId}
               onSwitchClub={switchClub}
+              onPin={navCollapsed ? expandNav : undefined}
             />
           </div>
         </>
