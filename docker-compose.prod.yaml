@@ -56,6 +56,8 @@ services:
       DATABASE_URL: "postgresql+asyncpg://waterpolo:${POSTGRES_PASSWORD}@waterpolo-postgres:5432/waterpolo_stats"
       SECRET_KEY: ${SECRET_KEY}
       CORS_ORIGINS: '["https://wts-stats.cebo.tech"]'
+      # Sterowanie głosem — warstwa AI (Claude). Pusty = sam parser deterministyczny.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # Voice-note audio storage (MinIO/S3)
       STORAGE_BACKEND: "s3"
       S3_ENDPOINT: "http://waterpolo-minio:9000"
