@@ -8,6 +8,7 @@ Output: marketing/Cap-Track-PZPW.pptx
 
 import os
 
+from PIL import Image as PILImage
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
@@ -270,6 +271,34 @@ def m_mvp(s, l, t, w, h):
         tb(s, l + w - 1.4, ry, 1.0, 0.42, [{"runs": [(f"{p} pkt", 12, MUTED, True)], "align": PP_ALIGN.RIGHT}], anchor=MSO_ANCHOR.MIDDLE)
 
 
+SCREENS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screens")
+
+
+def shot(s, l, t, w, h, name, title, fallback=None):
+    """Place a real app screenshot inside a window frame, preserving aspect.
+
+    Falls back to the stylized vector mockup if the PNG is missing, so the deck
+    still builds without the screenshots present.
+    """
+    path = os.path.join(SCREENS, name + ".png")
+    if not os.path.exists(path):
+        if fallback:
+            fallback(s, l, t, w, h)
+        return
+    m_frame(s, l, t, w, h, title)
+    il, it = l + 0.12, t + 0.56
+    iw, ih = w - 0.24, h - 0.70
+    pw, ph = PILImage.open(path).size
+    ratio = ph / pw
+    if iw * ratio <= ih:
+        dw, dh = iw, iw * ratio
+    else:
+        dw, dh = ih / ratio, ih
+    dx, dy = il + (iw - dw) / 2, it + (ih - dh) / 2
+    s.shapes.add_picture(path, Inches(dx), Inches(dy), Inches(dw), Inches(dh))
+    rect(s, dx, dy, dw, dh, fill=None, line=BORDER, lw=0.75, radius=0.015)
+
+
 def feature_card(s, l, t, w, h, title, desc):
     rect(s, l, t, w, h, fill=CARD, line=BORDER, lw=1, radius=0.08)
     rect(s, l + 0.22, t + 0.24, 0.34, 0.34, fill=ACCENT, radius=0.3)
@@ -326,7 +355,7 @@ bullets(s, 0.85, 3.6, 5.9, [
     ("Działa offline na hali", "— bez ryzyka utraty danych."),
     ("Web + iOS + Android", "— jeden kod, każde urządzenie."),
 ], size=15, gap=12)
-m_scorekeeper(s, 7.15, 1.95, 5.55, 4.6)
+shot(s, 7.15, 1.95, 5.55, 4.6, "asystent", "Asystent meczowy — na żywo", fallback=m_scorekeeper)
 
 # ════════════════════════════════════════════════════════════════
 # SLIDE 4 — Funkcje (grid)
@@ -355,7 +384,7 @@ for i, (ti, de) in enumerate(feats):
 # ════════════════════════════════════════════════════════════════
 s = slide()
 scaffold(s, "Funkcja · 01", "Asystent meczowy — klikasz, system liczy", 5)
-m_scorekeeper(s, 0.62, 2.0, 6.4, 4.5)
+shot(s, 0.62, 2.0, 6.4, 4.5, "asystent", "Asystent meczowy — na żywo", fallback=m_scorekeeper)
 bullets(s, 7.4, 2.2, 5.3, [
     ("Duże przyciski pod iPada", "— wygodne tempo meczu."),
     ("Podział WODA / ŁAWKA", "— ze strzałkami wejście/zejście."),
@@ -431,7 +460,8 @@ tb(s, 7.2, 5.85, 5.2, 0.4, [{"runs": [("#12 Gol z kontrataku · 2. kwarta · 14:
 # ════════════════════════════════════════════════════════════════
 s = slide()
 scaffold(s, "Funkcja · 05", "Statystyki, które realnie pomagają trenować", 9)
-m_bars(s, 0.62, 2.0, 6.2, 4.5, [6, 9, 5, 8, 7, 10, 6, 9], "Skuteczność ataku wg kwarty")
+shot(s, 0.62, 2.0, 6.2, 4.5, "stats", "Statystyki — filtry, tabela, wykresy",
+     fallback=lambda s, l, t, w, h: m_bars(s, l, t, w, h, [6, 9, 5, 8, 7, 10, 6, 9], "Skuteczność ataku wg kwarty"))
 bullets(s, 7.2, 2.2, 5.5, [
     ("Lekkie wykresy w aplikacji", "— bez eksportu do Excela."),
     ("Analiza wielu meczów naraz", "— trendy formy zespołu."),
@@ -445,7 +475,7 @@ bullets(s, 7.2, 2.2, 5.5, [
 # ════════════════════════════════════════════════════════════════
 s = slide()
 scaffold(s, "Funkcja · 06", "Pulpit — cały sezon na jednym ekranie", 10)
-m_dashboard(s, 0.62, 2.0, 7.0, 4.5)
+shot(s, 0.62, 2.0, 7.0, 4.5, "pulpit", "Pulpit sezonu", fallback=m_dashboard)
 bullets(s, 7.9, 2.3, 4.8, [
     ("Najważniejsze KPI sezonu", "— mecze, bilans, bramki."),
     ("Forma w skrócie", "— ostatnie wyniki W/R/P."),
@@ -458,7 +488,7 @@ bullets(s, 7.9, 2.3, 4.8, [
 # ════════════════════════════════════════════════════════════════
 s = slide()
 scaffold(s, "Funkcja · 07", "MVP i czas gry — docenianie zawodników", 11)
-m_mvp(s, 0.62, 2.0, 6.3, 4.5)
+shot(s, 0.62, 2.0, 6.3, 4.5, "mvp", "MVP po meczu", fallback=m_mvp)
 bullets(s, 7.3, 2.3, 5.4, [
     ("Obiektywny ranking wkładu", "— ważony scoring zdarzeń."),
     ("Sugerowany MVP po meczu", "— trener zatwierdza lub zmienia."),
