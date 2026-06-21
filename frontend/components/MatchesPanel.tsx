@@ -25,12 +25,22 @@ export default function MatchesPanel({ state, showToast, refresh }: Props) {
   const [streamMatch, setStreamMatch] = useState<Match | null>(null);
   const [streamUrl, setStreamUrl] = useState('');
   const [streamStart, setStreamStart] = useState<string | null>(null);
+  const [streamStartManual, setStreamStartManual] = useState(''); // datetime-local (local tz)
   const [streamLoading, setStreamLoading] = useState(false);
 
   const catNames = state.ageCategories.length
     ? state.ageCategories.map(c => c.name)
     : AGE_CATEGORIES;
   const activeMatchId = state.settings?.ActiveMatch;
+
+  // Stream start is stored as naive UTC; the <input type="datetime-local"> works
+  // in local time, so convert both ways around that boundary.
+  const utcIsoToLocalInput = (isoUtc: string): string => {
+    const d = new Date(isoUtc + 'Z');
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  const localInputToUtcIso = (local: string): string =>
+    new Date(local).toISOString().slice(0, 19); // drop ms + 'Z' → naive UTC
 
   const openEdit = (m: Match) => {
     setEditForm({ date: m.date, opponent: m.opponent, place: m.place, ageCategory: m.ageCategory });
@@ -109,12 +119,14 @@ export default function MatchesPanel({ state, showToast, refresh }: Props) {
     setStreamMatch(m);
     setStreamUrl('');
     setStreamStart(null);
+    setStreamStartManual('');
     setStreamLoading(true);
     try {
       const info = await api.getYouTube(m.match_id);
       if (info) {
         setStreamUrl(info.youtube_url || '');
         setStreamStart(info.stream_start_time || null);
+        if (info.stream_start_time) setStreamStartManual(utcIsoToLocalInput(info.stream_start_time));
       }
     } catch {
       // no stream yet
@@ -127,10 +139,18 @@ export default function MatchesPanel({ state, showToast, refresh }: Props) {
     if (!streamMatch || !streamUrl.trim()) return showToast('Wklej link do transmisji');
     setStreamLoading(true);
     try {
-      // Backend auto-detects the broadcast start from YouTube — no manual step.
-      const res = await api.attachYouTube(streamMatch.match_id, streamUrl.trim());
+      // Manual start (e.g. a past recording) wins; otherwise the backend
+      // auto-detects the broadcast start from YouTube.
+      const res = await api.attachYouTube(
+        streamMatch.match_id, streamUrl.trim(),
+        streamStartManual ? { streamStartTime: localInputToUtcIso(streamStartManual) } : {},
+      );
       setStreamStart(res.stream_start_time || null);
-      showToast(res.stream_start_time ? 'Zapisano — wykryto start transmisji' : 'Zapisano link');
+      showToast(
+        streamStartManual ? 'Zapisano — ustawiono ręczny start'
+          : res.stream_start_time ? 'Zapisano — wykryto start transmisji'
+            : 'Zapisano link',
+      );
       refresh();
     } catch (e: any) {
       showToast(e.message || 'Błąd');
@@ -290,10 +310,21 @@ export default function MatchesPanel({ state, showToast, refresh }: Props) {
                 placeholder="https://youtu.be/..."
               />
             </div>
+            <div className="form-group">
+              <label>Ręczny start transmisji (opcjonalnie)</label>
+              <input
+                type="datetime-local"
+                value={streamStartManual}
+                onChange={e => setStreamStartManual(e.target.value)}
+              />
+              <div className="muted small" style={{ marginTop: 4 }}>
+                Dla zapisanych nagrań / transmisji z przeszłości — wpisz moment realny, który odpowiada 0:00 filmu. Zostaw puste, aby wykryć automatycznie z YouTube.
+              </div>
+            </div>
             <div className="muted small" style={{ marginBottom: 12 }}>
               {streamStart
-                ? `✓ Start transmisji wykryty: ${new Date(streamStart + 'Z').toLocaleString('pl-PL')}`
-                : 'Wklej link i zapisz — start transmisji wykryje się automatycznie z YouTube (gdy stream jest na żywo).'}
+                ? `✓ Start transmisji ustawiony: ${new Date(streamStart + 'Z').toLocaleString('pl-PL')}`
+                : 'Wklej link i zapisz — start wykryje się automatycznie z YouTube (live) albo wpisz go ręcznie powyżej.'}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn primary" onClick={saveStreamLink} disabled={streamLoading}>Zapisz link</button>
