@@ -39,7 +39,7 @@ services:
       - "8000:8000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.wts-api.rule=Host(`api.wts-stats.cebo.tech`)"
+      - "traefik.http.routers.wts-api.rule=Host(`api.cap-track.cebo.tech`)"
       - "traefik.http.routers.wts-api.tls=true"
       - "traefik.http.routers.wts-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.wts-api.loadbalancer.server.port=8000"
@@ -62,7 +62,7 @@ services:
       - "3000:3000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.wts-web.rule=Host(`wts-stats.cebo.tech`)"
+      - "traefik.http.routers.wts-web.rule=Host(`cap-track.cebo.tech`)"
       - "traefik.http.routers.wts-web.tls=true"
       - "traefik.http.routers.wts-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.wts-web.loadbalancer.server.port=3000"

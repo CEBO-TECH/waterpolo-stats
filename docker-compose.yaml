@@ -32,10 +32,10 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.wts-stats.rule=Host(`wts-stats.cebo.tech`)"
-      - "traefik.http.routers.wts-stats.tls=true"
-      - "traefik.http.routers.wts-stats.tls.certresolver=letsencrypt"
-      - "traefik.http.services.wts-stats.loadbalancer.server.port=3000"
+      - "traefik.http.routers.cap-track.rule=Host(`cap-track.cebo.tech`)"
+      - "traefik.http.routers.cap-track.tls=true"
+      - "traefik.http.routers.cap-track.tls.certresolver=letsencrypt"
+      - "traefik.http.services.cap-track.loadbalancer.server.port=3000"
     networks:
       - coolify
 

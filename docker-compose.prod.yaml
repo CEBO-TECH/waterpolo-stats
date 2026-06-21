@@ -55,7 +55,7 @@ services:
     environment:
       DATABASE_URL: "postgresql+asyncpg://waterpolo:${POSTGRES_PASSWORD}@waterpolo-postgres:5432/waterpolo_stats"
       SECRET_KEY: ${SECRET_KEY}
-      CORS_ORIGINS: '["https://wts-stats.cebo.tech"]'
+      CORS_ORIGINS: '["https://cap-track.cebo.tech"]'
       # Sterowanie głosem — warstwa AI (Claude). Pusty = sam parser deterministyczny.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # Voice-note audio storage (MinIO/S3)
@@ -69,7 +69,7 @@ services:
       waterpolo-postgres:
         condition: service_healthy
     expose:
-      - "8000"  # Coolify mapuje domenę backendu na ten port
+      - "8000" # Coolify mapuje domenę backendu na ten port
     networks:
       - coolify
 
@@ -78,14 +78,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: "https://api.wts-stats.cebo.tech"
+        NEXT_PUBLIC_API_URL: "https://api.cap-track.cebo.tech"
     restart: unless-stopped
     environment:
       NODE_ENV: production
     depends_on:
       - backend
     expose:
-      - "3000"  # Coolify mapuje domenę frontendu na ten port
+      - "3000" # Coolify mapuje domenę frontendu na ten port
     networks:
       - coolify
 
