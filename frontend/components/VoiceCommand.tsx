@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { api } from '@/lib/api';
 import type { ParsedVoiceCommand } from '@/lib/types';
 
@@ -42,7 +43,8 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { setSupported(!!getRecognitionCtor()); }, []);
+  // Native app uses the iOS/Android speech plugin; web uses the Web Speech API.
+  useEffect(() => { setSupported(Capacitor.isNativePlatform() || !!getRecognitionCtor()); }, []);
 
   const clearTimer = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -88,8 +90,31 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
     }
   }, [matchId, startCountdown]);
 
+  // Native (iOS/Android) — Apple Speech / Android SpeechRecognizer via the plugin.
+  // Works in the WKWebView where Web Speech is unavailable, and can run on-device offline.
+  const listenNative = useCallback(async () => {
+    try {
+      const { SpeechRecognition } = await import('@capgo/capacitor-speech-recognition');
+      const perm = await SpeechRecognition.requestPermissions();
+      if (perm.speechRecognition !== 'granted') return showToast('Brak zgody na mikrofon / rozpoznawanie mowy');
+      clearTimer();
+      setPending(null);
+      setStatus('listening');
+      const res = await SpeechRecognition.start({
+        language: 'pl-PL', maxResults: 1, partialResults: false, popup: false,
+      });
+      const transcript = (res?.matches?.[0] || '').trim();
+      if (transcript) await handleTranscript(transcript);
+      else setStatus('idle');
+    } catch {
+      setStatus('idle');
+      showToast('Błąd rozpoznawania mowy');
+    }
+  }, [handleTranscript, showToast]);
+
   const listen = useCallback(() => {
     if (disabled) return showToast('Mecz zakończony');
+    if (Capacitor.isNativePlatform()) return void listenNative();
     const Ctor = getRecognitionCtor();
     if (!Ctor) { setSupported(false); return; }
     clearTimer();
@@ -111,10 +136,16 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
     rec.onend = () => { setStatus(s => (s === 'listening' ? 'idle' : s)); };
     recRef.current = rec;
     try { rec.start(); setStatus('listening'); } catch { setStatus('idle'); }
-  }, [disabled, handleTranscript, showToast]);
+  }, [disabled, listenNative, handleTranscript, showToast]);
 
   const stopListening = useCallback(() => {
-    recRef.current?.stop();
+    if (Capacitor.isNativePlatform()) {
+      import('@capgo/capacitor-speech-recognition').then(
+        ({ SpeechRecognition }) => SpeechRecognition.stop().catch(() => {}),
+      );
+    } else {
+      recRef.current?.stop();
+    }
     setStatus('idle');
   }, []);
 
