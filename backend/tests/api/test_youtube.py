@@ -45,6 +45,27 @@ async def test_attach_stream_and_event_jump(auth_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_event_explicit_timestamp_controls_seek(auth_client: AsyncClient):
+    """Backfilled events keep their explicit timestamp so the seek is exact."""
+    c = auth_client
+    club_id = c._club_id  # type: ignore
+    match_id, pid = await _setup_match(c, club_id)
+    await c.put(f"/v1/clubs/{club_id}/settings/active-match", json={"match_id": match_id})
+    await c.post(f"/v1/clubs/{club_id}/matches/{match_id}/youtube", json={
+        "youtube_url": "https://youtu.be/dQw4w9WgXcQ",
+        "stream_start_time": "2026-06-01T18:00:00",
+    })
+    # Event 600s after stream start → seek = 600 - 30 rewind = 570.
+    await c.post(f"/v1/clubs/{club_id}/events", json={"events": [
+        {"player_id": pid, "player_name": "X", "is_goal_from_play_positional": 1,
+         "timestamp": "2026-06-01T18:10:00"},
+    ]})
+    ev = (await c.get(f"/v1/clubs/{club_id}/matches/{match_id}/events?limit=10")).json()[0]
+    r = await c.get(f"/v1/clubs/{club_id}/matches/{match_id}/events/{ev['id']}/video-url")
+    assert r.json()["seek_seconds"] == 570
+
+
+@pytest.mark.asyncio
 async def test_start_now(auth_client: AsyncClient):
     c = auth_client
     club_id = c._club_id  # type: ignore

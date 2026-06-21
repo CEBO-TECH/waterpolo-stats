@@ -30,6 +30,7 @@ class SQLAlchemyEventRepository(EventRepository):
                 "subtype": ev.subtype,
                 "value": ev.value,
                 "note": ev.note,
+                "timestamp": ev.timestamp,
                 "video_timestamp": ev.video_timestamp,
             }
             for flag in EVENT_FLAG_FIELDS:
