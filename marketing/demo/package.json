@@ -1,0 +1,16 @@
+{
+  "name": "captrack-deck-screens",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pipeline do generowania prawdziwych screenów aplikacji do prezentacji (marketing/Cap-Track-PZPW.pptx).",
+  "scripts": {
+    "build-demo": "node build_demo.mjs",
+    "add-history": "node add_history.mjs",
+    "capture": "node capture.mjs",
+    "cleanup": "node cleanup.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}
