@@ -11,6 +11,9 @@ class EventCreate(BaseModel):
     subtype: str = ""
     value: str = ""
     note: str = ""
+    # Optional ISO event time. Defaults to "now"; pass it to backfill historical
+    # events so the YouTube replay seek lands on the right moment.
+    timestamp: str | None = None
     # All 44 flags default to 0
     is_goal_from_play_positional: int = 0
     is_goal_from_play_counter: int = 0

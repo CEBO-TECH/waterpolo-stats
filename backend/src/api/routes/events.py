@@ -1,6 +1,7 @@
 """Event routes — port of /api/events and related endpoints."""
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -42,6 +43,14 @@ async def create_events(
         }
         for flag in EVENT_FLAG_FIELDS:
             kwargs[flag] = getattr(ev_data, flag, 0)
+
+        # Optional explicit event time (for backfilling historical matches so the
+        # YouTube replay seek is correct); otherwise the model defaults to "now".
+        if ev_data.timestamp:
+            try:
+                kwargs["timestamp"] = datetime.fromisoformat(ev_data.timestamp)
+            except ValueError:
+                pass
 
         events.append(Event(**kwargs))
 
