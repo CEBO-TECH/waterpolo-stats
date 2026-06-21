@@ -4,6 +4,8 @@ import { Fragment, useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { AppState, Match, AGE_CATEGORIES } from '@/lib/types';
 import { Bars, GroupedBars, MultiSeriesBars, SERIES_PALETTE } from '@/components/Charts';
+import VideoModal from '@/components/VideoModal';
+import VoiceNotes from '@/components/VoiceNotes';
 
 const GOAL_FLAGS_FE = [
   'is_goal_from_play_positional', 'is_goal_from_play_counter', 'is_goal_from_center_positional',
@@ -96,7 +98,7 @@ export default function StatsPanel({ state, showToast }: Props) {
   const [selectedIds, setSelectedIds] = useState<string[]>(
     () => (state.settings?.ActiveMatch ? [state.settings.ActiveMatch] : []),
   );
-  const [tab, setTab] = useState<'table' | 'charts' | 'compare'>('table');
+  const [tab, setTab] = useState<'table' | 'charts' | 'actions' | 'compare'>('table');
 
   // Whether a match passes the current category + date-range filter.
   const inPool = (m: Match, cat: string, from: string, to: string) => {
@@ -179,8 +181,11 @@ export default function StatsPanel({ state, showToast }: Props) {
   const TABS: { key: typeof tab; label: string }[] = [
     { key: 'table', label: 'Tabela' },
     { key: 'charts', label: 'Wykresy' },
+    { key: 'actions', label: 'Akcje' },
     { key: 'compare', label: 'Porównaj mecze' },
   ];
+
+  const canManage = state.user?.role === 'owner' || state.user?.role === 'coach';
 
   // ── Single-match quarter sub-filter ──
   const [quarter, setQuarter] = useState('all');
@@ -267,6 +272,10 @@ export default function StatsPanel({ state, showToast }: Props) {
           : isSingle && single
             ? <ChartsView stats={single} />
             : <MultiCharts multi={multi} />
+      ) : tab === 'actions' ? (
+        isSingle
+          ? <ActionsView matchId={selectedIds[0]} canRecord={canManage} showToast={showToast} />
+          : <div className="card muted">Zaznacz jeden mecz, aby zobaczyć wszystkie akcje.</div>
       ) : (
         isPlayer
           ? <PlayerTable trend={playerTrend} />
@@ -422,6 +431,93 @@ function ChartsView({ stats }: { stats: any }) {
         <MultiSeriesBars categories={categories} series={series} />
       )}
     </div>
+  );
+}
+
+// ─── Single match: every action, filterable, with video replay + voice notes ───
+function ActionsView({ matchId, canRecord, showToast }: { matchId: string; canRecord: boolean; showToast: (m: string) => void }) {
+  const [events, setEvents] = useState<any[]>([]);
+  const [hasStream, setHasStream] = useState(false);
+  const [video, setVideo] = useState<{ video_id: string; seek_seconds: number } | null>(null);
+  const [fQ, setFQ] = useState('all');
+  const [fPlayer, setFPlayer] = useState('all');
+  const [fAction, setFAction] = useState('all');
+
+  useEffect(() => {
+    let on = true;
+    api.getEvents(matchId, 1000)
+      .then(e => { if (on) setEvents(Array.isArray(e) ? [...e].sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || '')) : []); })
+      .catch(() => {});
+    api.getYouTube(matchId).then(s => { if (on) setHasStream(!!s?.stream_start_time); }).catch(() => { if (on) setHasStream(false); });
+    return () => { on = false; };
+  }, [matchId]);
+
+  const actionNames = useMemo(() => Array.from(new Set(events.map(e => e.action))).sort(), [events]);
+  const playerNames = useMemo(() => Array.from(new Set(events.map(e => e.player_name))).sort(), [events]);
+  const filtered = events.filter(e =>
+    (fQ === 'all' || String(e.quarter) === fQ)
+    && (fPlayer === 'all' || e.player_name === fPlayer)
+    && (fAction === 'all' || e.action === fAction),
+  );
+
+  const openVideo = async (id: string) => {
+    try {
+      const r = await api.getEventVideoUrl(matchId, id);
+      if (r?.video_id) setVideo({ video_id: r.video_id, seek_seconds: r.seek_seconds || 0 });
+      else showToast('Brak wideo dla tej akcji');
+    } catch { showToast('Brak wideo dla tej akcji'); }
+  };
+
+  return (
+    <>
+      <div className="card">
+        <div className="subhead">Akcje meczu ({filtered.length})</div>
+        <div className="stats-filters__row" style={{ marginBottom: 12 }}>
+          <div className="stats-filters__field">
+            <label>Kwarta</label>
+            <select className="players-toolbar__select" value={fQ} onChange={e => setFQ(e.target.value)}>
+              <option value="all">Wszystkie kwarty</option>
+              {['1', '2', '3', '4'].map(q => <option key={q} value={q}>Q{q}</option>)}
+            </select>
+          </div>
+          <div className="stats-filters__field">
+            <label>Zawodnik</label>
+            <select className="players-toolbar__select" value={fPlayer} onChange={e => setFPlayer(e.target.value)}>
+              <option value="all">Wszyscy zawodnicy</option>
+              {playerNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div className="stats-filters__field">
+            <label>Akcja</label>
+            <select className="players-toolbar__select" value={fAction} onChange={e => setFAction(e.target.value)}>
+              <option value="all">Wszystkie akcje</option>
+              {actionNames.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="events-list">
+          {filtered.length === 0 ? (
+            <div className="muted small">Brak akcji dla wybranego filtra</div>
+          ) : filtered.map(ev => (
+            <div key={ev.id} className="event-item">
+              <span className="event-quarter">Q{ev.quarter}</span>
+              <span className="event-action">{ev.action}</span>
+              <span className="event-player">{ev.player_name}</span>
+              {hasStream && (
+                <button className="btn small event-video-btn" onClick={() => openVideo(ev.id)} title="Powtórka wideo">▶</button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <VoiceNotes matchId={matchId} showToast={showToast} canRecord={canRecord} />
+
+      {video && (
+        <VideoModal videoId={video.video_id} seekSeconds={video.seek_seconds} onClose={() => setVideo(null)} />
+      )}
+    </>
   );
 }
 
