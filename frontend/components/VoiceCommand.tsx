@@ -114,9 +114,7 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
     }
   }, [handleTranscript, showToast]);
 
-  const listen = useCallback(() => {
-    if (disabled) return showToast('Mecz zakończony');
-    if (Capacitor.isNativePlatform()) return void listenNative();
+  const startRecognition = useCallback(() => {
     const Ctor = getRecognitionCtor();
     if (!Ctor) { setSupported(false); return; }
     clearTimer();
@@ -124,8 +122,7 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
     const rec = new Ctor();
     rec.lang = 'pl-PL';
     // Keep listening until the user taps the button again to stop, then parse
-    // everything that was heard. This makes the press → listen → press-to-stop
-    // flow obvious instead of cutting off after the first short utterance.
+    // everything that was heard, instead of cutting off after the first utterance.
     rec.continuous = true;
     rec.interimResults = true;
     transcriptRef.current = '';
@@ -153,7 +150,26 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
     recRef.current = rec;
     try { rec.start(); setStatus('listening'); }
     catch { setStatus('idle'); showToast('Nie udało się uruchomić mikrofonu'); }
-  }, [disabled, listenNative, handleTranscript, showToast]);
+  }, [handleTranscript, showToast]);
+
+  const listen = useCallback(async () => {
+    if (disabled) return showToast('Mecz zakończony');
+    if (Capacitor.isNativePlatform()) return void listenNative();
+    if (!getRecognitionCtor()) { setSupported(false); return; }
+    // Settle the mic permission FIRST. On Chrome, starting SpeechRecognition
+    // before the permission prompt resolves silently aborts it — the user grants
+    // access and then "nothing happens". getUserMedia resolves only after the
+    // grant, so recognition then starts cleanly (and won't re-prompt).
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      } catch {
+        return showToast('Brak dostępu do mikrofonu — zezwól w przeglądarce');
+      }
+    }
+    startRecognition();
+  }, [disabled, listenNative, startRecognition, showToast]);
 
   const stopListening = useCallback(() => {
     if (Capacitor.isNativePlatform()) {
