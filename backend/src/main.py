@@ -74,8 +74,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Health check
-    @app.get("/v1/health")
+    # Health check — accepts GET and HEAD (the frontend offline-queue heartbeat
+    # pings this with HEAD to detect connectivity; HEAD must not 405).
+    @app.api_route("/v1/health", methods=["GET", "HEAD"])
     async def health():
         return {"status": "ok"}
 
