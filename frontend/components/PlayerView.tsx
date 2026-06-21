@@ -67,7 +67,7 @@ export default function PlayerView({ state, onLogout }: Props) {
           ) : (
             <>
               <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span className="player-row__num">{player.number}</span>
+                {player.number ? <span className="player-row__num">{player.number}</span> : null}
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{player.name}</div>
                   <div className="muted small">

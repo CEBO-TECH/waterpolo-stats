@@ -213,7 +213,7 @@ export default function StatsPanel({ state, showToast }: Props) {
               <label>Zawodnik</label>
               <select className="players-toolbar__select" value={playerId} onChange={e => setPlayerId(e.target.value)}>
                 <option value="all">Wszyscy zawodnicy</option>
-                {players.map(p => <option key={p.player_id} value={p.player_id}>#{p.number} {p.name}</option>)}
+                {players.map(p => <option key={p.player_id} value={p.player_id}>{p.number ? `#${p.number} ` : ''}{p.name}</option>)}
               </select>
             </div>
           </div>
@@ -308,7 +308,7 @@ function TableView({ stats, quarter, setQuarter }: { stats: any; quarter: string
           <thead>
             <tr>
               <th>Statystyka</th>
-              {players.map((p: any) => <th key={p.player_id}>#{p.number} {p.name}</th>)}
+              {players.map((p: any) => <th key={p.player_id}>{p.number ? `#${p.number} ` : ''}{p.name}</th>)}
               <th style={{ background: 'var(--bg-hover)' }}>Razem</th>
             </tr>
           </thead>

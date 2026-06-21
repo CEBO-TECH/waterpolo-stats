@@ -24,7 +24,7 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
   const [filterCat, setFilterCat] = useState<string>('all');
 
   const [editing, setEditing] = useState<Player | null>(null);
-  const [editForm, setEditForm] = useState({ number: '', name: '', team: 'my', birthYear: '', email: '' });
+  const [editForm, setEditForm] = useState({ name: '', team: 'my', birthYear: '', email: '' });
   const [editCats, setEditCats] = useState<string[]>([]);
   const [editLoading, setEditLoading] = useState(false);
 
@@ -110,7 +110,7 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
 
   const openEdit = (p: Player) => {
     setEditForm({
-      number: String(p.number), name: p.name, team: p.team || 'my',
+      name: p.name, team: p.team || 'my',
       birthYear: p.birth_year ? String(p.birth_year) : '', email: p.email || '',
     });
     setEditCats(p.age_categories || []);
@@ -127,7 +127,6 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
     setEditLoading(true);
     try {
       await api.updatePlayer(editing.player_id, {
-        number: Number(editForm.number) || 0,
         name: editForm.name.trim(),
         team: editForm.team,
         birth_year: editForm.birthYear ? Number(editForm.birthYear) : null,
@@ -246,7 +245,7 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
         <div className="players-grid">
           {filtered.map(p => (
             <div key={p.player_id} className="player-row">
-              <span className="player-row__num">{p.number || '–'}</span>
+              {p.number ? <span className="player-row__num">{p.number}</span> : null}
               <div className="player-row__info">
                 <span className="player-row__name">
                   {p.name}
@@ -281,10 +280,6 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
           <div className="popup" onClick={e => e.stopPropagation()}>
             <h3>Edytuj zawodnika</h3>
             <div className="form-row" style={{ marginBottom: 12 }}>
-              <div>
-                <label>Numer</label>
-                <input type="number" value={editForm.number} onChange={e => setEditForm({ ...editForm, number: e.target.value })} style={{ width: 90 }} />
-              </div>
               <div style={{ flex: 3 }}>
                 <label>Imię i nazwisko</label>
                 <input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
@@ -336,7 +331,7 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
       {profile && (
         <PlayerProfile
           playerId={profile.player_id}
-          playerLabel={`#${profile.number} ${profile.name}`}
+          playerLabel={profile.number ? `#${profile.number} ${profile.name}` : profile.name}
           onClose={() => setProfile(null)}
         />
       )}
