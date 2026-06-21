@@ -15,10 +15,8 @@ const config: CapacitorConfig = {
       backgroundColor: '#0b0f14',
       androidScaleType: 'CENTER_CROP',
     },
-    StatusBar: {
-      style: 'DARK',
-      backgroundColor: '#0b0f14',
-    },
+    // StatusBar plugin removed — @capacitor/status-bar@8.0.2 is incompatible with
+    // capacitor-swift-pm 8.0.2 (breaks iOS build). Status bar set via Info.plist.
   },
   ios: {
     contentInset: 'automatic',

@@ -39,6 +39,16 @@ class YouTubePort(ABC):
         ...
 
     @abstractmethod
+    async def get_stream_start_time(self, video_id: str) -> datetime | None:
+        """Actual wall-clock start of the live broadcast, as naive UTC.
+
+        Reads liveStreamingDetails.actualStartTime via the Data API so the coach
+        only has to paste the link (no manual "set start" step). Returns None when
+        unavailable: no API key, not a live broadcast, or it hasn't started yet.
+        """
+        ...
+
+    @abstractmethod
     def calculate_video_timestamp(
         self, stream_start: datetime, event_time: datetime, rewind_seconds: int = 30
     ) -> int:

@@ -305,26 +305,20 @@ export default function Home() {
           ☰
         </button>
 
-        <div className="tag">
-          Mecz:
-          <select
-            value={state.settings?.ActiveMatch || ''}
-            onChange={e => setMatch(e.target.value)}
-          >
-            {state.matches.map(m => (
-              <option key={m.match_id} value={m.match_id}>
-                vs {m.opponent || m.match_id} ({m.ageCategory || 'bez kat.'})
-              </option>
-            ))}
-          </select>
-        </div>
-
         {mode === 'score' && (
           <>
             <div className="tag">
-              Q: <span style={{ color: 'var(--accent)', fontWeight: 700 }}>
-                {state.settings?.Quarter || 1}
-              </span>
+              Mecz:
+              <select
+                value={state.settings?.ActiveMatch || ''}
+                onChange={e => setMatch(e.target.value)}
+              >
+                {state.matches.map(m => (
+                  <option key={m.match_id} value={m.match_id}>
+                    vs {m.opponent || m.match_id} ({m.ageCategory || 'bez kat.'})
+                  </option>
+                ))}
+              </select>
             </div>
             {[1, 2, 3, 4].map(q => (
               <button

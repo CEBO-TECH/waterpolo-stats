@@ -34,15 +34,13 @@ export async function hapticImpact(): Promise<void> {
 }
 
 /**
- * Set dark status bar — matches app theme on native.
+ * Status bar styling.
+ *
+ * The @capacitor/status-bar plugin (8.0.2) is incompatible with capacitor-swift-pm
+ * 8.0.2 (it calls removed APIs: PluginConfig.getString / UIColor(fromHex:)), which
+ * breaks the iOS build. We removed the plugin and set the status bar natively via
+ * Info.plist instead (UIStatusBarStyle = light content). This is now a no-op.
  */
 export async function setDarkStatusBar(): Promise<void> {
-  if (!isNativePlatform()) return;
-  try {
-    const { StatusBar, Style } = await import('@capacitor/status-bar');
-    await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: '#0b0f14' });
-  } catch {
-    // Plugin not available
-  }
+  // No-op — handled by Info.plist (UIStatusBarStyleLightContent).
 }

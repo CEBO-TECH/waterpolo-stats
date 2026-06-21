@@ -1,12 +1,12 @@
 """YouTube stream routes."""
 
-import re
 import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from src.adapters.youtube.data_api import get_youtube_port
 from src.api.deps import AnyMember, CoachOrOwner, EventRepo, YouTubeRepo
 from src.domain.models import YouTubeStream
 from src.domain.services import YouTubeService
@@ -21,19 +21,6 @@ class YouTubeStreamCreate(BaseModel):
     start_now: bool = False  # set stream_start_time to server "now" (same clock as events)
 
 
-def _extract_video_id(url: str) -> str | None:
-    """Extract YouTube video ID from URL."""
-    patterns = [
-        r'(?:v=|/v/|youtu\.be/)([a-zA-Z0-9_-]{11})',
-        r'(?:embed/)([a-zA-Z0-9_-]{11})',
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
-
-
 @router.post("/youtube", status_code=201)
 async def attach_youtube_stream(
     club_id: str, match_id: str,
@@ -41,7 +28,8 @@ async def attach_youtube_stream(
     ctx: CoachOrOwner,
     repo: YouTubeRepo,
 ):
-    video_id = _extract_video_id(body.youtube_url)
+    yt = get_youtube_port()
+    video_id = yt.extract_video_id(body.youtube_url)
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
@@ -50,6 +38,10 @@ async def attach_youtube_stream(
         start_time = datetime.utcnow()
     elif body.stream_start_time:
         start_time = datetime.fromisoformat(body.stream_start_time)
+    else:
+        # Just a pasted link → read the real broadcast start from YouTube so the
+        # coach doesn't have to press anything. None when no API key / not live.
+        start_time = await yt.get_stream_start_time(video_id)
 
     # Upsert
     existing = await repo.get_for_match(match_id)

@@ -1071,6 +1071,43 @@ label {
   font-size: 13px;
 }
 .match-select-item.on { border-color: var(--accent); background: rgba(76, 201, 240, 0.1); }
+.match-select-item input[type="checkbox"] { width: auto; flex: 0 0 auto; }
+.match-select-item > span { flex: 1; min-width: 0; }
+
+/* ── Stats filter bar ── */
+
+.stats-filters { display: flex; flex-direction: column; gap: 12px; }
+.stats-filters__row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 768px) {
+  .stats-filters__row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1024px) {
+  .stats-filters__row { grid-template-columns: repeat(4, 1fr); }
+}
+.stats-filters__field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.stats-filters__field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fg-muted);
+}
+.stats-filters__field .players-toolbar__select { width: 100%; }
+.stats-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── Chart legend (overlaid series) ── */
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
 
 /* ── MVP summary ── */
 

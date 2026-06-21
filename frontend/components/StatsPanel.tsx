@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { AppState } from '@/lib/types';
-import { Bars, GroupedBars } from '@/components/Charts';
+import { AppState, Match, AGE_CATEGORIES } from '@/lib/types';
+import { Bars, GroupedBars, MultiSeriesBars, SERIES_PALETTE } from '@/components/Charts';
 
 const GOAL_FLAGS_FE = [
   'is_goal_from_play_positional', 'is_goal_from_play_counter', 'is_goal_from_center_positional',
@@ -73,48 +73,108 @@ const FLAG_GROUPS = [
   { name: 'Obrona przewaga', flags: ['is_no_return_man_up', 'is_excl_committed_field_man_up', 'is_excl_committed_center_man_up', 'is_penalty_committed_field_man_up', 'is_penalty_committed_center_man_up', 'is_shot_saved_gk_def_man_up', 'is_steal_man_up', 'is_block_hand_man_up', 'is_no_block_man_up'] },
 ];
 
+const pct = (v: number) => `${Math.round((v || 0) * 100)}%`;
+const matchLabel = (m?: Match) => m ? `vs ${m.opponent || '—'}` : '—';
+
 type Props = {
   state: AppState;
   showToast: (msg: string) => void;
 };
 
 export default function StatsPanel({ state, showToast }: Props) {
+  const matches = state.matches;
+  const players = state.players;
+  const catNames = state.ageCategories.length
+    ? state.ageCategories.map(c => c.name)
+    : AGE_CATEGORIES;
+
+  // ── Filters ──
+  const [catFilter, setCatFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [playerId, setPlayerId] = useState('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    () => (state.settings?.ActiveMatch ? [state.settings.ActiveMatch] : []),
+  );
   const [tab, setTab] = useState<'table' | 'charts' | 'compare'>('table');
-  const [stats, setStats] = useState<any>(null);
-  const [quarter, setQuarter] = useState('all');
 
-  const matchId = state.settings?.ActiveMatch;
+  // Whether a match passes the current category + date-range filter.
+  const inPool = (m: Match, cat: string, from: string, to: string) => {
+    if (cat !== 'all' && (m.ageCategory || '') !== cat) return false;
+    if (from && (m.date || '') < from) return false;
+    if (to && (m.date || '') > to) return false;
+    return true;
+  };
 
-  const loadStats = useCallback(async () => {
-    if (!matchId) return;
-    try {
-      setStats(await api.getMatchStats(matchId));
-    } catch {
-      showToast('Błąd ładowania statystyk');
-    }
-  }, [matchId, showToast]);
+  const pool = useMemo(
+    () => matches.filter(m => inPool(m, catFilter, dateFrom, dateTo)),
+    [matches, catFilter, dateFrom, dateTo],
+  );
+  const poolIds = useMemo(() => pool.map(m => m.match_id), [pool]);
+  const matchById = useMemo(() => {
+    const map: Record<string, Match> = {};
+    matches.forEach(m => { map[m.match_id] = m; });
+    return map;
+  }, [matches]);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
-
-  // ── Compare tab ──
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [multi, setMulti] = useState<any>(null);
-  const [multiLoading, setMultiLoading] = useState(false);
+  // Changing a *scope* filter (category / date) re-selects the whole resulting
+  // pool — that's what "cała kategoria" / "zakres dat" mean. Individual matches
+  // can then be toggled off.
+  const applyCat = (cat: string) => {
+    setCatFilter(cat);
+    setSelectedIds(matches.filter(m => inPool(m, cat, dateFrom, dateTo)).map(m => m.match_id));
+  };
+  const applyDate = (from: string, to: string) => {
+    setDateFrom(from);
+    setDateTo(to);
+    setSelectedIds(matches.filter(m => inPool(m, catFilter, from, to)).map(m => m.match_id));
+  };
 
   const toggleMatch = (id: string) =>
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  const selectAll = () => setSelectedIds(poolIds);
+  const clearSel = () => setSelectedIds([]);
 
-  const loadMulti = async () => {
-    if (selectedIds.length === 0) return showToast('Zaznacz mecze');
-    setMultiLoading(true);
-    try {
-      setMulti(await api.getMultiStats(selectedIds));
-    } catch (e: any) {
-      showToast(e.message || 'Błąd');
-    } finally {
-      setMultiLoading(false);
-    }
-  };
+  // ── Data ──
+  const [single, setSingle] = useState<any>(null);
+  const [multi, setMulti] = useState<any>(null);
+  const [player, setPlayer] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const selKey = selectedIds.join(',');
+  const isSingle = selectedIds.length === 1;
+  const isPlayer = playerId !== 'all';
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (selectedIds.length === 0) {
+        setSingle(null); setMulti(null); setPlayer(null);
+        return;
+      }
+      setLoading(true);
+      try {
+        const [m, s, p] = await Promise.all([
+          api.getMultiStats(selectedIds),
+          selectedIds.length === 1 ? api.getMatchStats(selectedIds[0]) : Promise.resolve(null),
+          isPlayer ? api.getPlayerProfile(playerId) : Promise.resolve(null),
+        ]);
+        if (!active) return;
+        setMulti(m); setSingle(s); setPlayer(p);
+      } catch {
+        if (active) showToast('Błąd ładowania statystyk');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [selKey, playerId]); // eslint-disable-line
+
+  // Player trend, restricted to the selected matches.
+  const playerTrend = useMemo(
+    () => (player?.match_trend || []).filter((m: any) => selectedIds.includes(m.match_id)),
+    [player, selKey], // eslint-disable-line
+  );
 
   const TABS: { key: typeof tab; label: string }[] = [
     { key: 'table', label: 'Tabela' },
@@ -122,8 +182,70 @@ export default function StatsPanel({ state, showToast }: Props) {
     { key: 'compare', label: 'Porównaj mecze' },
   ];
 
+  // ── Single-match quarter sub-filter ──
+  const [quarter, setQuarter] = useState('all');
+
+  const empty = selectedIds.length === 0;
+
   return (
     <div className="wrap">
+      {/* ── Filter bar ── */}
+      <div className="card">
+        <div className="subhead">Zakres statystyk</div>
+        <div className="stats-filters">
+          <div className="stats-filters__row">
+            <div className="stats-filters__field">
+              <label>Kategoria wiekowa</label>
+              <select className="players-toolbar__select" value={catFilter} onChange={e => applyCat(e.target.value)}>
+                <option value="all">Wszystkie kategorie</option>
+                {catNames.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="stats-filters__field">
+              <label>Od (data)</label>
+              <input className="players-toolbar__select" type="date" value={dateFrom} onChange={e => applyDate(e.target.value, dateTo)} />
+            </div>
+            <div className="stats-filters__field">
+              <label>Do (data)</label>
+              <input className="players-toolbar__select" type="date" value={dateTo} onChange={e => applyDate(dateFrom, e.target.value)} />
+            </div>
+            <div className="stats-filters__field">
+              <label>Zawodnik</label>
+              <select className="players-toolbar__select" value={playerId} onChange={e => setPlayerId(e.target.value)}>
+                <option value="all">Wszyscy zawodnicy</option>
+                {players.map(p => <option key={p.player_id} value={p.player_id}>#{p.number} {p.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="stats-toolbar">
+            <span className="muted small">
+              Mecze: <strong style={{ color: 'var(--accent)' }}>{selectedIds.length}</strong> wybrane
+              {pool.length !== matches.length && ` (z ${pool.length} w filtrze)`}
+            </span>
+            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+              <button className="btn small" onClick={selectAll} disabled={pool.length === 0}>Zaznacz wszystkie</button>
+              <button className="btn small" onClick={clearSel} disabled={selectedIds.length === 0}>Wyczyść</button>
+            </div>
+          </div>
+
+          <div className="match-select-list">
+            {pool.map(m => (
+              <div
+                key={m.match_id}
+                className={`match-select-item${selectedIds.includes(m.match_id) ? ' on' : ''}`}
+                onClick={() => toggleMatch(m.match_id)}
+              >
+                <input type="checkbox" checked={selectedIds.includes(m.match_id)} onChange={() => {}} style={{ accentColor: 'var(--accent)' }} />
+                <span>vs {m.opponent || '—'} <span className="muted">· {m.date || '—'} · {m.ageCategory || 'bez kat.'}</span></span>
+              </div>
+            ))}
+            {pool.length === 0 && <div className="muted small">Brak meczów dla wybranego filtra</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
       <div className="tabs">
         {TABS.map(t => (
           <button key={t.key} className={`btn small${tab === t.key ? ' primary' : ''}`} onClick={() => setTab(t.key)}>
@@ -132,27 +254,32 @@ export default function StatsPanel({ state, showToast }: Props) {
         ))}
       </div>
 
-      {tab === 'compare' ? (
-        <CompareView
-          matches={state.matches}
-          selectedIds={selectedIds}
-          toggleMatch={toggleMatch}
-          loadMulti={loadMulti}
-          multi={multi}
-          loading={multiLoading}
-        />
-      ) : !stats ? (
-        <div className="muted">Wybierz mecz aby zobaczyć statystyki</div>
+      {/* ── Result ── */}
+      {empty ? (
+        <div className="card muted">Wybierz mecz, kategorię lub zakres dat, aby zobaczyć statystyki.</div>
+      ) : loading ? (
+        <div className="card muted">Ładowanie statystyk…</div>
+      ) : tab === 'compare' ? (
+        <CompareView multi={multi} matchById={matchById} selectedIds={selectedIds} />
       ) : tab === 'charts' ? (
-        <ChartsView stats={stats} />
+        isPlayer
+          ? <PlayerCharts trend={playerTrend} />
+          : isSingle && single
+            ? <ChartsView stats={single} />
+            : <MultiCharts multi={multi} />
       ) : (
-        <TableView stats={stats} quarter={quarter} setQuarter={setQuarter} reload={loadStats} />
+        isPlayer
+          ? <PlayerTable trend={playerTrend} />
+          : isSingle && single
+            ? <TableView stats={single} quarter={quarter} setQuarter={setQuarter} />
+            : <MultiTable multi={multi} matchById={matchById} />
       )}
     </div>
   );
 }
 
-function TableView({ stats, quarter, setQuarter, reload }: { stats: any; quarter: string; setQuarter: (q: string) => void; reload: () => void }) {
+// ─── Single match: per-player flag table ───
+function TableView({ stats, quarter, setQuarter }: { stats: any; quarter: string; setQuarter: (q: string) => void }) {
   const players = stats.players || [];
   const dataSource = quarter === 'all' ? stats.perPlayerAll : stats.perPlayerByQ?.[quarter] || {};
   const totals = quarter === 'all' ? stats.totalsAll : stats.totalsByQ?.[quarter] || {};
@@ -175,7 +302,6 @@ function TableView({ stats, quarter, setQuarter, reload }: { stats: any; quarter
             {q === 'all' ? 'Wszystkie' : `Q${q}`}
           </button>
         ))}
-        <button className="btn small" onClick={reload} style={{ marginLeft: 'auto' }}>Odśwież</button>
       </div>
       <div className="stats-table-wrap">
         <table className="stats-table">
@@ -215,6 +341,7 @@ function TableView({ stats, quarter, setQuarter, reload }: { stats: any; quarter
   );
 }
 
+// ─── Single match: charts ───
 function ChartsView({ stats }: { stats: any }) {
   const players = stats.players || [];
   const goalsPerPlayer = players
@@ -246,92 +373,226 @@ function ChartsView({ stats }: { stats: any }) {
   );
 }
 
-function CompareView({ matches, selectedIds, toggleMatch, loadMulti, multi, loading }: {
-  matches: any[]; selectedIds: string[]; toggleMatch: (id: string) => void;
-  loadMulti: () => void; multi: any; loading: boolean;
-}) {
-  const KPIS = multi ? [
-    { label: 'Bramki', value: multi.totals.goals },
-    { label: 'Asysty', value: multi.totals.assists },
-    { label: 'Straty', value: multi.totals.turnovers },
-    { label: 'Przejęcia', value: multi.totals.steals },
-    { label: 'Indeks of.', value: multi.totals.of_index },
-    { label: 'Indeks def.', value: multi.totals.def_index },
-  ] : [];
+// ─── Many matches: aggregate table (per-match rows) ───
+function MultiTable({ multi, matchById }: { multi: any; matchById: Record<string, Match> }) {
+  if (!multi) return <div className="card muted">Brak danych</div>;
+  const t = multi.totals || {};
+  const KPIS = [
+    { label: 'Mecze', value: multi.match_count },
+    { label: 'Bramki', value: t.goals },
+    { label: 'Asysty', value: t.assists },
+    { label: 'Straty', value: t.turnovers },
+    { label: 'Przejęcia', value: t.steals },
+    { label: 'Indeks of.', value: t.of_index },
+    { label: 'Indeks def.', value: t.def_index },
+  ];
+  return (
+    <>
+      <div className="kpi-grid" style={{ marginBottom: 16 }}>
+        {KPIS.map(k => (
+          <div className="kpi-card" key={k.label}>
+            <div className="kpi-card__value">{k.value ?? '·'}</div>
+            <div className="kpi-card__label">{k.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <div className="subhead">Mecze ({multi.trend?.length || 0})</div>
+        <div className="stats-table-wrap">
+          <table className="stats-table">
+            <thead>
+              <tr>
+                <th>Mecz</th><th>Wynik</th><th>Bramki</th><th>Straty</th>
+                <th>Przejęcia</th><th>Indeks of.</th><th>Indeks def.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(multi.trend || []).map((m: any) => (
+                <tr key={m.match_id}>
+                  <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>
+                    {m.date} <span className="muted">vs {m.opponent || '—'}</span>
+                  </td>
+                  <td>{m.my_score}:{m.opp_score}</td>
+                  <td>{m.goals}</td>
+                  <td>{m.turnovers}</td>
+                  <td>{m.steals}</td>
+                  <td style={{ color: m.of_index >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{m.of_index > 0 ? '+' : ''}{m.of_index}</td>
+                  <td style={{ color: m.def_index >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{m.def_index > 0 ? '+' : ''}{m.def_index}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Many matches: charts ───
+function MultiCharts({ multi }: { multi: any }) {
+  if (!multi) return <div className="card muted">Brak danych</div>;
+  return (
+    <>
+      <div className="card">
+        <div className="subhead">Bramki per mecz (tendencja)</div>
+        <Bars data={(multi.trend || []).map((t: any) => ({ label: t.opponent || '—', value: t.goals }))} color="var(--accent)" />
+      </div>
+      <div className="card">
+        <div className="subhead">Rozkład czasowy (suma kwart)</div>
+        <GroupedBars
+          categories={['Q1', 'Q2', 'Q3', 'Q4']}
+          seriesA={{ name: 'Bramki', color: 'var(--green)', values: (multi.by_quarter || []).map((q: any) => q.goals) }}
+          seriesB={{ name: 'Straty', color: 'var(--red)', values: (multi.by_quarter || []).map((q: any) => q.turnovers) }}
+        />
+      </div>
+    </>
+  );
+}
+
+// ─── Compare: matches overlaid (columns + overlaid bars) ───
+function CompareView({ multi, matchById, selectedIds }: { multi: any; matchById: Record<string, Match>; selectedIds: string[] }) {
+  if (selectedIds.length < 2)
+    return <div className="card muted">Zaznacz co najmniej 2 mecze, aby je porównać.</div>;
+  if (!multi?.trend?.length) return <div className="card muted">Brak danych</div>;
+
+  const trend: any[] = multi.trend;
+  const colLabel = (t: any) => `vs ${t.opponent || '—'}`;
+
+  // Rows shown in the overlaid comparison table.
+  const ROWS: { label: string; get: (t: any) => any; signed?: boolean; chart?: boolean }[] = [
+    { label: 'Wynik', get: t => `${t.my_score}:${t.opp_score}` },
+    { label: 'Bramki', get: t => t.goals, chart: true },
+    { label: 'Straty', get: t => t.turnovers, chart: true },
+    { label: 'Przejęcia', get: t => t.steals, chart: true },
+    { label: 'Indeks of.', get: t => t.of_index, signed: true },
+    { label: 'Indeks def.', get: t => t.def_index, signed: true },
+  ];
+
+  const chartRows = ROWS.filter(r => r.chart);
+  const series = trend.map((t, i) => ({
+    name: colLabel(t),
+    color: SERIES_PALETTE[i % SERIES_PALETTE.length],
+    values: chartRows.map(r => Number(r.get(t)) || 0),
+  }));
 
   return (
     <>
       <div className="card">
-        <div className="subhead">Wybierz mecze ({selectedIds.length})</div>
-        <div className="match-select-list">
-          {matches.map(m => (
-            <div
-              key={m.match_id}
-              className={`match-select-item${selectedIds.includes(m.match_id) ? ' on' : ''}`}
-              onClick={() => toggleMatch(m.match_id)}
-            >
-              <input type="checkbox" checked={selectedIds.includes(m.match_id)} onChange={() => {}} style={{ accentColor: 'var(--accent)' }} />
-              <span>vs {m.opponent || '—'} <span className="muted">· {m.date || '—'} · {m.ageCategory || 'bez kat.'}</span></span>
-            </div>
-          ))}
-          {matches.length === 0 && <div className="muted small">Brak meczów</div>}
-        </div>
-        <button className="btn primary" onClick={loadMulti} disabled={loading} style={{ marginTop: 12 }}>
-          {loading ? 'Liczenie...' : 'Pokaż statystyki'}
-        </button>
+        <div className="subhead">Porównanie — wykres nałożony</div>
+        <MultiSeriesBars categories={chartRows.map(r => r.label)} series={series} />
       </div>
 
-      {multi && (
-        <>
-          <div className="kpi-grid" style={{ marginBottom: 16 }}>
-            {KPIS.map(k => (
-              <div className="kpi-card" key={k.label}>
-                <div className="kpi-card__value">{k.value}</div>
-                <div className="kpi-card__label">{k.label}</div>
-              </div>
-            ))}
-          </div>
+      <div className="card">
+        <div className="subhead">Porównanie — tabela</div>
+        <div className="stats-table-wrap">
+          <table className="stats-table">
+            <thead>
+              <tr>
+                <th>Statystyka</th>
+                {trend.map((t, i) => (
+                  <th key={t.match_id}>
+                    <span style={{ color: SERIES_PALETTE[i % SERIES_PALETTE.length] }}>■</span> {colLabel(t)}
+                    <div className="muted small">{t.date}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ROWS.map(row => (
+                <tr key={row.label}>
+                  <td>{row.label}</td>
+                  {trend.map(t => {
+                    const v = row.get(t);
+                    const style = row.signed
+                      ? { color: (Number(v) >= 0 ? 'var(--green)' : 'var(--red)'), fontWeight: 700 }
+                      : undefined;
+                    const display = row.signed && Number(v) > 0 ? `+${v}` : v;
+                    return <td key={t.match_id} style={style}>{display}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
 
-          <div className="card">
-            <div className="subhead">Bramki per mecz (tendencja)</div>
-            <Bars
-              data={multi.trend.map((t: any) => ({ label: t.opponent || '—', value: t.goals }))}
-              color="var(--accent)"
-            />
+// ─── Player-focused: KPI + per-match table ───
+function PlayerTable({ trend }: { trend: any[] }) {
+  if (trend.length === 0) return <div className="card muted">Brak danych zawodnika w wybranych meczach.</div>;
+  const agg = trend.reduce((a, m) => ({
+    goals: a.goals + (m.goals || 0), shots: a.shots + (m.shots || 0),
+    assists: a.assists + (m.assists || 0), turnovers: a.turnovers + (m.turnovers || 0),
+    exclusions: a.exclusions + (m.exclusions || 0), steals: a.steals + (m.steals || 0),
+    blocks: a.blocks + (m.blocks || 0),
+  }), { goals: 0, shots: 0, assists: 0, turnovers: 0, exclusions: 0, steals: 0, blocks: 0 });
+  const eff = agg.shots ? agg.goals / agg.shots : 0;
+  const KPIS = [
+    { label: 'Mecze', value: trend.length },
+    { label: 'Gole', value: agg.goals },
+    { label: 'Skuteczność', value: pct(eff) },
+    { label: 'Asysty', value: agg.assists },
+    { label: 'Straty', value: agg.turnovers },
+    { label: 'Wykluczenia', value: agg.exclusions },
+    { label: 'Przejęcia', value: agg.steals },
+    { label: 'Bloki', value: agg.blocks },
+  ];
+  return (
+    <>
+      <div className="kpi-grid" style={{ marginBottom: 16 }}>
+        {KPIS.map(k => (
+          <div className="kpi-card" key={k.label}>
+            <div className="kpi-card__value">{k.value}</div>
+            <div className="kpi-card__label">{k.label}</div>
           </div>
+        ))}
+      </div>
+      <div className="card">
+        <div className="subhead">Tendencja per mecz</div>
+        <div className="stats-table-wrap">
+          <table className="stats-table">
+            <thead>
+              <tr><th>Mecz</th><th>Gole</th><th>Rzuty</th><th>Sk.</th><th>As.</th><th>Str.</th><th>Wykl.</th><th>Prz.</th><th>Bloki</th></tr>
+            </thead>
+            <tbody>
+              {trend.map((m: any) => (
+                <tr key={m.match_id}>
+                  <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>{m.match_date} <span className="muted">vs {m.opponent || '—'}</span></td>
+                  <td>{m.goals || '·'}</td>
+                  <td>{m.shots || '·'}</td>
+                  <td>{pct(m.shot_effectiveness)}</td>
+                  <td>{m.assists || '·'}</td>
+                  <td>{m.turnovers || '·'}</td>
+                  <td>{m.exclusions || '·'}</td>
+                  <td>{m.steals || '·'}</td>
+                  <td>{m.blocks || '·'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
 
-          <div className="card">
-            <div className="subhead">Rozkład czasowy (suma kwart)</div>
-            <GroupedBars
-              categories={['Q1', 'Q2', 'Q3', 'Q4']}
-              seriesA={{ name: 'Bramki', color: 'var(--green)', values: multi.by_quarter.map((q: any) => q.goals) }}
-              seriesB={{ name: 'Straty', color: 'var(--red)', values: multi.by_quarter.map((q: any) => q.turnovers) }}
-            />
-          </div>
-
-          <div className="card">
-            <div className="subhead">Ofensywność / defensywność per mecz</div>
-            <div className="stats-table-wrap">
-              <table className="stats-table">
-                <thead>
-                  <tr><th>Mecz</th><th>Bramki</th><th>Straty</th><th>Indeks of.</th><th>Indeks def.</th></tr>
-                </thead>
-                <tbody>
-                  {multi.trend.map((t: any) => (
-                    <tr key={t.match_id}>
-                      <td style={{ textAlign: 'left', whiteSpace: 'nowrap' }}>{t.date} <span className="muted">vs {t.opponent || '—'}</span></td>
-                      <td>{t.goals}</td>
-                      <td>{t.turnovers}</td>
-                      <td style={{ color: t.of_index >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{t.of_index > 0 ? '+' : ''}{t.of_index}</td>
-                      <td style={{ color: t.def_index >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>{t.def_index > 0 ? '+' : ''}{t.def_index}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
+// ─── Player-focused: charts ───
+function PlayerCharts({ trend }: { trend: any[] }) {
+  if (trend.length === 0) return <div className="card muted">Brak danych zawodnika w wybranych meczach.</div>;
+  const goals = trend.map((m: any) => ({ label: m.opponent || '—', value: m.goals || 0 }));
+  const eff = trend.map((m: any) => ({ label: m.opponent || '—', value: Math.round((m.shot_effectiveness || 0) * 100) }));
+  return (
+    <>
+      <div className="card">
+        <div className="subhead">Bramki per mecz</div>
+        <Bars data={goals} color="var(--green)" />
+      </div>
+      <div className="card">
+        <div className="subhead">Skuteczność rzutów per mecz</div>
+        <Bars data={eff} color="var(--accent)" unit="%" />
+      </div>
     </>
   );
 }

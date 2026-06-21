@@ -19,7 +19,6 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "8.0.2",
     "@capacitor/splash-screen": "^8.0.1",
-    "@capacitor/status-bar": "^8.0.2",
     "@capgo/capacitor-speech-recognition": "^8.1.7",
     "next": "14.2.35",
     "react": "^18",

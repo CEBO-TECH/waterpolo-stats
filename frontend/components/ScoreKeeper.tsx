@@ -135,6 +135,22 @@ export default function ScoreKeeper({
     }
   };
 
+  // Re-run YouTube auto-detection (no startNow) — useful if the stream went live
+  // after the link was first pasted.
+  const redetectStream = async () => {
+    if (!matchId || !youtube?.youtube_url) return;
+    setStreamBusy(true);
+    try {
+      const res = await api.attachYouTube(matchId, youtube.youtube_url);
+      setState(prev => ({ ...prev, youtube: res }));
+      showToast(res.stream_start_time ? 'Wykryto start transmisji' : 'Nie wykryto startu — czy stream jest na żywo?');
+    } catch (e: any) {
+      showToast(e.message || 'Błąd');
+    } finally {
+      setStreamBusy(false);
+    }
+  };
+
   const openVideo = async (eventId: string) => {
     if (!matchId) return;
     try {
@@ -277,8 +293,9 @@ export default function ScoreKeeper({
             )}
           </div>
 
-          {/* Voice command — hands-free event entry */}
-          {isActive && (
+          {/* Voice command — hands-free event entry. Visible whenever a match is
+              selected so it's discoverable; only usable while the match is live. */}
+          {matchId && (
             <VoiceCommand
               matchId={matchId}
               disabled={!isActive}
@@ -401,10 +418,15 @@ export default function ScoreKeeper({
               </>
             ) : (
               <>
-                <span className="muted">Stream podpięty, brak startu.</span>
-                <button className="btn small primary" style={{ marginLeft: 'auto' }} onClick={setStreamStartNow} disabled={streamBusy}>
-                  ▶ Ustaw start streamu = teraz
-                </button>
+                <span className="muted">Stream podpięty — start nie wykryty.</span>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                  <button className="btn small primary" onClick={redetectStream} disabled={streamBusy}>
+                    Wykryj start
+                  </button>
+                  <button className="btn small" onClick={setStreamStartNow} disabled={streamBusy} title="Gdy auto-wykrycie nie zadziała">
+                    Ustaw ręcznie = teraz
+                  </button>
+                </div>
               </>
             )}
           </div>

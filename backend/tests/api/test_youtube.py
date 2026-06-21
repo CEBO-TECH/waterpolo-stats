@@ -58,6 +58,32 @@ async def test_start_now(auth_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_auto_detect_start_from_youtube(auth_client: AsyncClient, monkeypatch):
+    """Pasting just a link auto-detects the broadcast start (no start_now)."""
+    from datetime import datetime
+
+    class _FakeYouTube:
+        def extract_video_id(self, url):
+            return "abcdefghijk" if "youtu" in url else None
+
+        async def get_stream_start_time(self, video_id):
+            return datetime(2021, 5, 1, 18, 0, 0)
+
+    monkeypatch.setattr(
+        "src.api.routes.youtube.get_youtube_port", lambda: _FakeYouTube()
+    )
+
+    c = auth_client
+    club_id = c._club_id  # type: ignore
+    match_id, _ = await _setup_match(c, club_id)
+    r = await c.post(f"/v1/clubs/{club_id}/matches/{match_id}/youtube", json={
+        "youtube_url": "https://youtu.be/abcdefghijk",
+    })
+    assert r.status_code == 201
+    assert r.json()["stream_start_time"] == "2021-05-01T18:00:00"
+
+
+@pytest.mark.asyncio
 async def test_invalid_youtube_url(auth_client: AsyncClient):
     c = auth_client
     club_id = c._club_id  # type: ignore

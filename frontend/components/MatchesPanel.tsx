@@ -127,8 +127,10 @@ export default function MatchesPanel({ state, showToast, refresh }: Props) {
     if (!streamMatch || !streamUrl.trim()) return showToast('Wklej link do transmisji');
     setStreamLoading(true);
     try {
-      await api.attachYouTube(streamMatch.match_id, streamUrl.trim());
-      showToast('Zapisano link');
+      // Backend auto-detects the broadcast start from YouTube — no manual step.
+      const res = await api.attachYouTube(streamMatch.match_id, streamUrl.trim());
+      setStreamStart(res.stream_start_time || null);
+      showToast(res.stream_start_time ? 'Zapisano — wykryto start transmisji' : 'Zapisano link');
       refresh();
     } catch (e: any) {
       showToast(e.message || 'Błąd');
@@ -290,12 +292,21 @@ export default function MatchesPanel({ state, showToast, refresh }: Props) {
             </div>
             <div className="muted small" style={{ marginBottom: 12 }}>
               {streamStart
-                ? `Start streamu ustawiony: ${new Date(streamStart + 'Z').toLocaleString('pl-PL')}`
-                : 'Start streamu nieustawiony — kliknij „Ustaw start = teraz”, gdy transmisja ruszy.'}
+                ? `✓ Start transmisji wykryty: ${new Date(streamStart + 'Z').toLocaleString('pl-PL')}`
+                : 'Wklej link i zapisz — start transmisji wykryje się automatycznie z YouTube (gdy stream jest na żywo).'}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn primary" onClick={saveStreamLink} disabled={streamLoading}>Zapisz link</button>
-              <button className="btn" onClick={setStreamStartNow} disabled={streamLoading}>Ustaw start = teraz</button>
+              {!streamStart && (
+                <button
+                  className="btn"
+                  onClick={setStreamStartNow}
+                  disabled={streamLoading}
+                  title="Użyj tylko, gdy automatyczne wykrycie się nie powiodło"
+                >
+                  Ustaw start ręcznie = teraz
+                </button>
+              )}
               <button className="btn" onClick={() => setStreamMatch(null)} style={{ marginLeft: 'auto' }}>Zamknij</button>
             </div>
           </div>
