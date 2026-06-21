@@ -14,14 +14,13 @@ type Props = {
 type SortKey = 'number' | 'name';
 
 export default function PlayersPanel({ state, showToast, refresh }: Props) {
-  const [number, setNumber] = useState('');
   const [name, setName] = useState('');
   const [birthYear, setBirthYear] = useState('');
   const [playerEmail, setPlayerEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<SortKey>('number');
+  const [sort, setSort] = useState<SortKey>('name');
   const [filterCat, setFilterCat] = useState<string>('all');
 
   const [editing, setEditing] = useState<Player | null>(null);
@@ -66,11 +65,10 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
     if (!name.trim()) return showToast('Podaj imię zawodnika');
     setLoading(true);
     try {
-      await api.createPlayer(Number(number) || 0, name.trim(), {
+      await api.createPlayer(name.trim(), {
         birth_year: birthYear ? Number(birthYear) : null,
         email: playerEmail.trim() || null,
       });
-      setNumber('');
       setName('');
       setBirthYear('');
       setPlayerEmail('');
@@ -164,10 +162,6 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
         <div className="subhead">Dodaj zawodnika</div>
         <form onSubmit={addPlayer}>
           <div className="form-row" style={{ marginBottom: 12 }}>
-            <div>
-              <label>Numer</label>
-              <input type="number" value={number} onChange={e => setNumber(e.target.value)} placeholder="3" style={{ width: 80 }} />
-            </div>
             <div style={{ flex: 3 }}>
               <label>Imię i nazwisko</label>
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Jan Kowalski" />
@@ -176,6 +170,9 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
               <label>Rocznik</label>
               <input type="number" value={birthYear} onChange={e => setBirthYear(e.target.value)} placeholder="2010" style={{ width: 100 }} />
             </div>
+          </div>
+          <div className="muted small" style={{ marginBottom: 12 }}>
+            Numer na czepku nadajesz przy tworzeniu składu na mecz.
           </div>
           <div className="form-row" style={{ marginBottom: 12 }}>
             <div style={{ flex: 1 }}>
@@ -249,7 +246,7 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
         <div className="players-grid">
           {filtered.map(p => (
             <div key={p.player_id} className="player-row">
-              <span className="player-row__num">{p.number}</span>
+              <span className="player-row__num">{p.number || '–'}</span>
               <div className="player-row__info">
                 <span className="player-row__name">
                   {p.name}

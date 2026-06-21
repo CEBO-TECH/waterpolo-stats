@@ -2,7 +2,9 @@ from pydantic import BaseModel
 
 
 class PlayerCreate(BaseModel):
-    number: int
+    # Jersey number is assigned per match in the roster, not at player creation,
+    # so it is optional here (defaults to 0 = "unassigned").
+    number: int | None = None
     name: str
     team: str = "my"
     birth_year: int | None = None

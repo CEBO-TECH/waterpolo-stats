@@ -41,7 +41,7 @@ async def create_player(
         id=str(uuid.uuid4()),
         club_id=club_id,
         player_id=f"player_{int(uuid.uuid4().time_low)}",
-        number=body.number,
+        number=body.number or 0,  # 0 = jersey number not yet assigned
         name=body.name,
         team=body.team,
         birth_year=body.birth_year,

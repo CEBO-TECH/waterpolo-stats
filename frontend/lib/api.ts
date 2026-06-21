@@ -205,14 +205,19 @@ class ApiClient {
     return res.json();
   }
 
+  // Jersey number is assigned per match in the roster, so it is optional at
+  // creation (pass it via `extra` only if known).
   async createPlayer(
-    number: number,
     name: string,
-    extra: { birth_year?: number | null; email?: string | null } = {},
+    extra: {
+      number?: number | null;
+      birth_year?: number | null;
+      email?: string | null;
+    } = {},
   ) {
     const res = await this.fetch(this.clubUrl("/players"), {
       method: "POST",
-      body: JSON.stringify({ number, name, ...extra }),
+      body: JSON.stringify({ name, ...extra }),
     });
     return res.json();
   }
