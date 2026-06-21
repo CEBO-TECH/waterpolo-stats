@@ -38,6 +38,17 @@ class SQLAlchemyClubInvitationRepository(ClubInvitationRepository):
         )
         return [invitation_to_domain(r) for r in result.scalars().all()]
 
+    async def list_pending_for_email(self, email: str) -> list[ClubInvitation]:
+        result = await self.session.execute(
+            select(ClubInvitationModel)
+            .where(
+                ClubInvitationModel.email == email,
+                ClubInvitationModel.status == "pending",
+            )
+            .order_by(ClubInvitationModel.created_at.asc())
+        )
+        return [invitation_to_domain(r) for r in result.scalars().all()]
+
     async def get_by_token(self, token: str) -> ClubInvitation | None:
         result = await self.session.execute(
             select(ClubInvitationModel).where(ClubInvitationModel.token == token)

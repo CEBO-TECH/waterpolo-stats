@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.adapters.auth.jwt_adapter import JWTAdapter
 from src.adapters.auth.password_adapter import PasswordAdapter
 from src.adapters.persistence.database import get_async_session
-from src.adapters.persistence.repositories import SQLAlchemyClubRepository, SQLAlchemyUserRepository
+from src.adapters.persistence.repositories import (
+    SQLAlchemyClubInvitationRepository,
+    SQLAlchemyClubRepository,
+    SQLAlchemyPlayerRepository,
+    SQLAlchemyUserRepository,
+)
 from src.api.deps import CurrentUser
 from src.api.schemas.auth import (
     LoginRequest,
@@ -18,7 +23,7 @@ from src.api.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
-from src.domain.models import User
+from src.domain.models import ClubMembership, User, UserRole
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 jwt = JWTAdapter()
@@ -41,7 +46,49 @@ async def register(
         hashed_password=pwd.hash(body.password),
     )
     created = await user_repo.create(user)
-    return UserResponse(id=created.id, email=created.email, clubs=[])
+
+    # Auto-join by email — no token link needed. A person joins a club when they
+    # register with an email that was invited to it OR attached to a player record
+    # in it; that player profile is linked to the new account.
+    inv_repo = SQLAlchemyClubInvitationRepository(session)
+    player_repo = SQLAlchemyPlayerRepository(session)
+    club_repo = SQLAlchemyClubRepository(session)
+    joined: dict[str, UserRole] = {}
+
+    async def ensure_membership(club_id: str, role: UserRole) -> None:
+        if club_id in joined:
+            return
+        if not await user_repo.get_membership(created.id, club_id):
+            await user_repo.create_membership(ClubMembership(
+                id=str(uuid.uuid4()), user_id=created.id, club_id=club_id, role=role,
+            ))
+        joined[club_id] = role
+
+    async def link_player(club_id: str) -> None:
+        player = await player_repo.get_by_email(club_id, created.email)
+        if player and not player.user_id:
+            await player_repo.update_fields(club_id, player.player_id, {"user_id": created.id})
+
+    for inv in await inv_repo.list_pending_for_email(created.email):
+        await ensure_membership(inv.club_id, inv.role)
+        await link_player(inv.club_id)
+        await inv_repo.update_status(inv.id, "accepted")
+
+    for player in await player_repo.list_by_email_all_clubs(created.email):
+        await ensure_membership(player.club_id, UserRole.PLAYER)
+        if not player.user_id:
+            await player_repo.update_fields(player.club_id, player.player_id, {"user_id": created.id})
+
+    clubs = []
+    for club_id, role in joined.items():
+        club = await club_repo.get_by_id(club_id)
+        clubs.append({
+            "club_id": club_id,
+            "club_name": club.name if club else "",
+            "role": role.value,
+        })
+
+    return UserResponse(id=created.id, email=created.email, clubs=clubs)
 
 
 @router.post("/login", response_model=TokenResponse)

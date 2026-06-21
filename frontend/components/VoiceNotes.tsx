@@ -23,6 +23,7 @@ export default function VoiceNotes({ matchId, showToast, canRecord, playerId }: 
   const chunksRef = useRef<Blob[]>([]);
   const startRef = useRef<number>(0);
   const tickRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const load = useCallback(async () => {
     if (!matchId) return;
@@ -35,13 +36,18 @@ export default function VoiceNotes({ matchId, showToast, canRecord, playerId }: 
     if (!navigator.mediaDevices?.getUserMedia) return showToast('Brak dostępu do mikrofonu');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
+      // Pick a format the browser can actually record AND replay. Safari records
+      // mp4 (not webm), so forcing 'audio/webm' produced unplayable notes there.
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(
+        m => (window as any).MediaRecorder?.isTypeSupported?.(m),
+      );
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       chunksRef.current = [];
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
         clearInterval(tickRef.current);
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || mime || 'audio/webm' });
         const duration = Math.round((Date.now() - startRef.current) / 1000);
         setRecording(false);
         try {
@@ -66,9 +72,19 @@ export default function VoiceNotes({ matchId, showToast, canRecord, playerId }: 
   const stopRecording = () => recRef.current?.stop();
 
   const play = async (noteId: string) => {
-    const url = await api.getVoiceNoteAudioUrl(matchId, noteId);
-    if (!url) return showToast('Brak nagrania');
-    new Audio(url).play();
+    try {
+      const url = await api.getVoiceNoteAudioUrl(matchId, noteId);
+      if (!url) return showToast('Brak nagrania');
+      // Retain the element (a local `new Audio(...)` can be GC'd mid-playback on
+      // the web) and surface decode/playback failures instead of failing silently.
+      audioRef.current?.pause();
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onerror = () => showToast('Nie można odtworzyć nagrania w tej przeglądarce');
+      await audio.play();
+    } catch {
+      showToast('Nie można odtworzyć nagrania');
+    }
   };
 
   const del = async (noteId: string) => {

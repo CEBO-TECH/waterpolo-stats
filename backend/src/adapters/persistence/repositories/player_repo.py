@@ -62,6 +62,12 @@ class SQLAlchemyPlayerRepository(PlayerRepository):
         row = result.scalar_one_or_none()
         return player_to_domain(row) if row else None
 
+    async def list_by_email_all_clubs(self, email: str) -> list[Player]:
+        result = await self.session.execute(
+            select(PlayerModel).where(PlayerModel.email == email)
+        )
+        return [player_to_domain(r) for r in result.scalars().all()]
+
     async def update_fields(
         self, club_id: str, player_id: str, fields: dict
     ) -> Player | None:

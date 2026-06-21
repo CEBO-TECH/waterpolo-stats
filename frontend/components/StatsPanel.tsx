@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { AppState, Match, AGE_CATEGORIES } from '@/lib/types';
 import { Bars, GroupedBars, MultiSeriesBars, SERIES_PALETTE } from '@/components/Charts';
@@ -314,8 +314,8 @@ function TableView({ stats, quarter, setQuarter }: { stats: any; quarter: string
           </thead>
           <tbody>
             {FLAG_GROUPS.map(group => (
-              <>
-                <tr key={`g-${group.name}`} className="stats-group-header">
+              <Fragment key={group.name}>
+                <tr className="stats-group-header">
                   <td colSpan={players.length + 2}>{group.name}</td>
                 </tr>
                 {group.flags.map(flag => (
@@ -332,7 +332,7 @@ function TableView({ stats, quarter, setQuarter }: { stats: any; quarter: string
                     <td style={{ fontWeight: 700, background: 'var(--bg-hover)' }}>{totals[flag] || '·'}</td>
                   </tr>
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -342,34 +342,86 @@ function TableView({ stats, quarter, setQuarter }: { stats: any; quarter: string
 }
 
 // ─── Single match: charts ───
+// Metrics the user can plot. Each is a named group of flags with a fixed colour.
+const CHART_METRICS: { key: string; name: string; color: string; flags: string[] }[] = [
+  { key: 'goals', name: 'Bramki', color: 'var(--green)', flags: GOAL_FLAGS_FE },
+  { key: 'assists', name: 'Asysty', color: 'var(--accent)', flags: ['is_assist_positional', 'is_assist_man_up'] },
+  { key: 'turnovers', name: 'Straty', color: 'var(--red)', flags: TURNOVER_FLAGS_FE },
+  { key: 'gk_saves', name: 'Obrony GK', color: '#38bdf8', flags: ['is_shot_saved_gk_def_positional', 'is_shot_saved_gk_def_man_up'] },
+  { key: 'excl_drawn', name: 'Sprow. wykluczenia', color: 'var(--orange)', flags: ['is_excl_drawn_field_positional', 'is_excl_drawn_center_positional'] },
+  { key: 'steals', name: 'Przejęcia', color: '#a78bfa', flags: ['is_steal_positional', 'is_steal_man_up'] },
+  { key: 'blocks', name: 'Bloki', color: '#f472b6', flags: ['is_block_hand_positional', 'is_block_hand_man_up'] },
+];
+
 function ChartsView({ stats }: { stats: any }) {
   const players = stats.players || [];
-  const goalsPerPlayer = players
-    .map((p: any) => ({ label: `#${p.number}`, value: sumFlags(stats.perPlayerAll?.[p.player_id], GOAL_FLAGS_FE) }))
-    .filter((d: any) => d.value > 0)
-    .sort((a: any, b: any) => b.value - a.value);
+  const [metricKeys, setMetricKeys] = useState<string[]>(['goals', 'turnovers']);
+  const [xAxis, setXAxis] = useState<'players' | 'quarters'>('players');
 
-  const quarters = ['1', '2', '3', '4'];
-  const goalsByQ = quarters.map(q => sumFlags(stats.totalsByQ?.[q], GOAL_FLAGS_FE));
-  const turnoversByQ = quarters.map(q => sumFlags(stats.totalsByQ?.[q], TURNOVER_FLAGS_FE));
+  const metrics = CHART_METRICS.filter(m => metricKeys.includes(m.key));
+  const toggleMetric = (k: string) =>
+    setMetricKeys(prev => (prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]));
+
+  let categories: string[] = [];
+  let series: { name: string; color: string; values: number[] }[] = [];
+
+  if (xAxis === 'quarters') {
+    const qs = ['1', '2', '3', '4'];
+    categories = ['Q1', 'Q2', 'Q3', 'Q4'];
+    series = metrics.map(m => ({
+      name: m.name, color: m.color,
+      values: qs.map(q => sumFlags(stats.totalsByQ?.[q], m.flags)),
+    }));
+  } else if (xAxis === 'players') {
+    const rows = players
+      .map((p: any) => ({
+        p,
+        total: metrics.reduce((s, m) => s + sumFlags(stats.perPlayerAll?.[p.player_id], m.flags), 0),
+      }))
+      .filter((r: any) => r.total > 0)
+      .sort((a: any, b: any) => b.total - a.total);
+    categories = rows.map((r: any) => (r.p.number ? `#${r.p.number}` : r.p.name.split(' ').slice(-1)[0]));
+    series = metrics.map(m => ({
+      name: m.name, color: m.color,
+      values: rows.map((r: any) => sumFlags(stats.perPlayerAll?.[r.p.player_id], m.flags)),
+    }));
+  }
+
+  const tab = (key: typeof xAxis, label: string) => (
+    <div className={`toggle-option${xAxis === key ? ' active' : ''}`} onClick={() => setXAxis(key)}>{label}</div>
+  );
 
   return (
-    <>
-      <div className="card">
-        <div className="subhead">Bramki per zawodnik</div>
-        {goalsPerPlayer.length === 0
-          ? <div className="muted small">Brak bramek</div>
-          : <Bars data={goalsPerPlayer} color="var(--green)" />}
+    <div className="card">
+      <div className="subhead">Wykresy</div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <span className="muted small">Oś X:</span>
+        <div className="toggle-switch">
+          {tab('players', 'Zawodnicy')}
+          {tab('quarters', 'Kwarty')}
+        </div>
       </div>
-      <div className="card">
-        <div className="subhead">Rozkład czasowy (kwarty)</div>
-        <GroupedBars
-          categories={['Q1', 'Q2', 'Q3', 'Q4']}
-          seriesA={{ name: 'Bramki', color: 'var(--green)', values: goalsByQ }}
-          seriesB={{ name: 'Straty', color: 'var(--red)', values: turnoversByQ }}
-        />
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+        {CHART_METRICS.map(m => {
+          const on = metricKeys.includes(m.key);
+          return (
+            <button key={m.key} className={`btn small${on ? ' primary' : ''}`} onClick={() => toggleMetric(m.key)}>
+              <span style={{ color: on ? undefined : m.color }}>■</span> {m.name}
+            </button>
+          );
+        })}
       </div>
-    </>
+
+      {metrics.length === 0 ? (
+        <div className="muted small">Wybierz co najmniej jedną cechę.</div>
+      ) : categories.length === 0 ? (
+        <div className="muted small">Brak danych dla wybranych cech.</div>
+      ) : (
+        <MultiSeriesBars categories={categories} series={series} />
+      )}
+    </div>
   );
 }
 

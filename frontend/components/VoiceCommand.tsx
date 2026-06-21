@@ -41,6 +41,7 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
   const [remaining, setRemaining] = useState(AUTO_CONFIRM_MS);
 
   const recRef = useRef<SpeechRecognitionLike | null>(null);
+  const transcriptRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Native app uses the iOS/Android speech plugin; web uses the Web Speech API.
@@ -121,21 +122,36 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
     setPending(null);
     const rec = new Ctor();
     rec.lang = 'pl-PL';
-    rec.continuous = false;
-    rec.interimResults = false;
+    // Keep listening until the user taps the button again to stop, then parse
+    // everything that was heard. This makes the press → listen → press-to-stop
+    // flow obvious instead of cutting off after the first short utterance.
+    rec.continuous = true;
+    rec.interimResults = true;
+    transcriptRef.current = '';
+    rec.onstart = () => setStatus('listening');
     rec.onresult = (e: any) => {
-      const transcript = e.results?.[0]?.[0]?.transcript ?? '';
-      if (transcript.trim()) handleTranscript(transcript.trim());
-      else setStatus('idle');
+      let finalT = '';
+      for (let i = e.resultIndex ?? 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalT += e.results[i][0].transcript;
+      }
+      if (finalT.trim()) transcriptRef.current = `${transcriptRef.current} ${finalT}`.trim();
     };
     rec.onerror = (e: any) => {
-      setStatus('idle');
-      if (e?.error === 'not-allowed') showToast('Brak dostępu do mikrofonu');
-      else if (e?.error !== 'no-speech' && e?.error !== 'aborted') showToast('Błąd rozpoznawania mowy');
+      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+        setStatus('idle');
+        showToast('Brak dostępu do mikrofonu — zezwól w przeglądarce');
+      } else if (e?.error !== 'no-speech' && e?.error !== 'aborted') {
+        showToast('Błąd rozpoznawania mowy');
+      }
     };
-    rec.onend = () => { setStatus(s => (s === 'listening' ? 'idle' : s)); };
+    rec.onend = () => {
+      const t = transcriptRef.current.trim();
+      if (t) handleTranscript(t);
+      else setStatus(s => (s === 'listening' ? 'idle' : s));
+    };
     recRef.current = rec;
-    try { rec.start(); setStatus('listening'); } catch { setStatus('idle'); }
+    try { rec.start(); setStatus('listening'); }
+    catch { setStatus('idle'); showToast('Nie udało się uruchomić mikrofonu'); }
   }, [disabled, listenNative, handleTranscript, showToast]);
 
   const stopListening = useCallback(() => {
@@ -172,9 +188,9 @@ export default function VoiceCommand({ matchId, disabled, onConfirm, showToast }
         aria-label={listening ? 'Słucham…' : 'Komenda głosowa'}
         title='Powiedz np. „numer 12 gol z kontrataku”'
       >
-        <span className="voice-cmd__icon">🎤</span>
+        <span className="voice-cmd__icon">{listening ? '⏹' : '🎤'}</span>
         <span className="voice-cmd__text">
-          {listening ? 'Słucham…' : parsing ? 'Rozpoznaję…' : 'Komenda głosem'}
+          {listening ? 'Słucham… — naciśnij, aby zakończyć' : parsing ? 'Rozpoznaję…' : 'Komenda głosem'}
         </span>
       </button>
 

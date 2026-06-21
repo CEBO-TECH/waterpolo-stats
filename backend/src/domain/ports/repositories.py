@@ -57,6 +57,11 @@ class ClubInvitationRepository(ABC):
     async def list_pending(self, club_id: str) -> list[ClubInvitation]: ...
 
     @abstractmethod
+    async def list_pending_for_email(self, email: str) -> list[ClubInvitation]:
+        """All pending invitations for an email across every club (for auto-join on register)."""
+        ...
+
+    @abstractmethod
     async def get_by_token(self, token: str) -> ClubInvitation | None: ...
 
     @abstractmethod
@@ -144,6 +149,11 @@ class PlayerRepository(ABC):
 
     @abstractmethod
     async def get_by_email(self, club_id: str, email: str) -> Player | None: ...
+
+    @abstractmethod
+    async def list_by_email_all_clubs(self, email: str) -> list[Player]:
+        """All player records with this email across every club (for auto-link on register)."""
+        ...
 
     @abstractmethod
     async def create(self, player: Player) -> Player: ...

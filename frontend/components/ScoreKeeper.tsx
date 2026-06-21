@@ -23,8 +23,6 @@ type Props = {
   showToast: (msg: string) => void;
   refreshEvents: () => void;
   refreshStats: () => void;
-  note: string;
-  setNote: (n: string) => void;
 };
 
 // Maps UI action → flag field name
@@ -65,7 +63,7 @@ function getFlag(action: string, isManUp: boolean): Record<string, number> {
 
 export default function ScoreKeeper({
   state, setState, attackMode, setAttackMode, showToast,
-  refreshEvents, refreshStats, note, setNote,
+  refreshEvents, refreshStats,
 }: Props) {
   const isActive = state.matches.find(m => m.match_id === state.settings?.ActiveMatch)?.status === 'active';
   const matchId = state.settings?.ActiveMatch || '';
@@ -180,10 +178,8 @@ export default function ScoreKeeper({
       const r = await api.createEvents([{
         player_id: state.selected.player_id,
         player_name: state.selected.name,
-        note,
         ...flags,
       }]);
-      setNote('');
       showToast(r?.queued ? 'Zapisano offline ⏳' : 'Zapisano');
       refreshEvents();
     } catch (e: any) {
@@ -220,7 +216,6 @@ export default function ScoreKeeper({
       const r = await api.createEvents([{
         player_id: cmd.player_id,
         player_name: cmd.player_name,
-        note: '',
         [cmd.flag]: 1,
       }]);
       showToast(r?.queued ? `🎤 #${cmd.number} ${cmd.label} — offline ⏳` : `🎤 #${cmd.number} ${cmd.label}`);
@@ -281,6 +276,15 @@ export default function ScoreKeeper({
 
       {/* Actions */}
       <div className="actions-main">
+        {/* Voice command on top, above all blocks — hands-free entry, usable while live. */}
+        {matchId && (
+          <VoiceCommand
+            matchId={matchId}
+            disabled={!isActive}
+            onConfirm={submitVoiceCommand}
+            showToast={showToast}
+          />
+        )}
         <div className="panel">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <div className="muted" style={{ flex: 1 }}>
@@ -293,19 +297,8 @@ export default function ScoreKeeper({
             )}
           </div>
 
-          {/* Voice command — hands-free event entry. Visible whenever a match is
-              selected so it's discoverable; only usable while the match is live. */}
-          {matchId && (
-            <VoiceCommand
-              matchId={matchId}
-              disabled={!isActive}
-              onConfirm={submitVoiceCommand}
-              showToast={showToast}
-            />
-          )}
-
           {/* Attack mode toggle */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
             <div className="toggle-switch">
               <div
                 className={`toggle-option${attackMode === 'positional' ? ' active' : ''}`}
@@ -322,15 +315,6 @@ export default function ScoreKeeper({
             </div>
           </div>
 
-          {/* Note input */}
-          <div style={{ marginBottom: 16 }}>
-            <input
-              placeholder="Notatka (opcjonalnie)..."
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              style={{ fontSize: 13 }}
-            />
-          </div>
         </div>
 
         {/* Attack buttons */}
@@ -381,9 +365,7 @@ export default function ScoreKeeper({
 
               <div className="subhead">Rzuty karne</div>
               <div className="grid">
-                <button className="btn primary" onClick={() => submitEvent('goal_penalty')}>
-                  Bramka z karnego
-                </button>
+                <Btn action="goal_penalty" label="Bramka z karnego" />
               </div>
             </>
           )}

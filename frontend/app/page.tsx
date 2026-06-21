@@ -45,7 +45,6 @@ export default function Home() {
   const collapseNav = () => { setNavCollapsed(true); try { localStorage.setItem('nav_collapsed', '1'); } catch {} };
   const expandNav = () => { setNavCollapsed(false); setDrawerOpen(false); try { localStorage.removeItem('nav_collapsed'); } catch {} };
   const [attackMode, setAttackMode] = useState<'positional' | 'man_up'>('positional');
-  const [note, setNote] = useState('');
   const { connectionStatus, queuedRequests, manualSync } = useOfflineQueue();
 
   const [scorePopup, setScorePopup] = useState<{
@@ -405,8 +404,6 @@ export default function Home() {
           showToast={showToast}
           refreshEvents={() => loadRecentEvents()}
           refreshStats={() => {}}
-          note={note}
-          setNote={setNote}
         />
       )}
       {mode === 'stats' && <StatsPanel state={state} showToast={showToast} />}

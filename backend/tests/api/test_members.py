@@ -43,27 +43,28 @@ async def test_last_owner_guard(auth_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_invitation_for_new_email_and_accept(client: AsyncClient):
+async def test_invited_email_auto_joins_on_register(client: AsyncClient):
+    """Invite by email, then register that email → auto-joined, no token link."""
     await client.post("/v1/auth/register", json={"email": "owner@o.pl", "password": "pass"})
-    await client.post("/v1/auth/login", json={"email": "owner@o.pl", "password": "pass"})
     tok = (await client.post("/v1/auth/login", json={"email": "owner@o.pl", "password": "pass"})).json()["access_token"]
     club = await client.post("/v1/clubs", json={"name": "Klub"}, headers={"Authorization": f"Bearer {tok}"})
     club_id = club.json()["id"]
     tok = (await client.post("/v1/auth/login", json={"email": "owner@o.pl", "password": "pass"})).json()["access_token"]
     H = {"Authorization": f"Bearer {tok}"}
 
-    r = await client.post(f"/v1/clubs/{club_id}/invite", json={"email": "new@p.pl", "role": "player"}, headers=H)
+    r = await client.post(f"/v1/clubs/{club_id}/invite", json={"email": "new@p.pl", "role": "coach"}, headers=H)
     assert r.status_code == 201 and r.json()["added"] is False
-    token = r.json()["invitation"]["token"]
-
     assert len((await client.get(f"/v1/clubs/{club_id}/invitations", headers=H)).json()) == 1
 
-    await client.post("/v1/auth/register", json={"email": "new@p.pl", "password": "pass"})
+    # Registering with the invited email is enough — no token accept needed.
+    reg = await client.post("/v1/auth/register", json={"email": "new@p.pl", "password": "pass"})
+    assert reg.status_code == 201
+    assert any(cl["club_id"] == club_id and cl["role"] == "coach" for cl in reg.json()["clubs"])
+
     ntok = (await client.post("/v1/auth/login", json={"email": "new@p.pl", "password": "pass"})).json()["access_token"]
     NH = {"Authorization": f"Bearer {ntok}"}
-
-    r = await client.post(f"/v1/invitations/{token}/accept", headers=NH)
-    assert r.status_code == 200
-
     me = await client.get("/v1/auth/me", headers=NH)
     assert any(cl["club_id"] == club_id for cl in me.json()["clubs"])
+
+    # Invitation is now consumed (no longer pending).
+    assert len((await client.get(f"/v1/clubs/{club_id}/invitations", headers=H)).json()) == 0

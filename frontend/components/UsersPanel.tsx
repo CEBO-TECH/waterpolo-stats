@@ -18,7 +18,6 @@ export default function UsersPanel({ state, showToast }: Props) {
   const [invitations, setInvitations] = useState<any[]>([]);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('player');
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -40,10 +39,8 @@ export default function UsersPanel({ state, showToast }: Props) {
       const r = await api.inviteMember(email.trim(), role);
       if (r.added) {
         showToast('Dodano do klubu');
-        setInviteLink(null);
       } else {
-        setInviteLink(`${window.location.origin}/?invite=${r.invitation.token}`);
-        showToast('Utworzono zaproszenie');
+        showToast('Zaproszenie utworzone — dołączy po rejestracji tym e-mailem');
       }
       setEmail('');
       load();
@@ -68,11 +65,6 @@ export default function UsersPanel({ state, showToast }: Props) {
   const revoke = async (id: string) => {
     try { await api.revokeInvitation(id); showToast('Cofnięto zaproszenie'); load(); }
     catch (e: any) { showToast(e.message || 'Błąd'); }
-  };
-
-  const copy = (link: string) => {
-    navigator.clipboard?.writeText(link);
-    showToast('Skopiowano link');
   };
 
   return (
@@ -127,17 +119,10 @@ export default function UsersPanel({ state, showToast }: Props) {
             </div>
             <button type="submit" className="btn primary" disabled={loading}>Zaproś</button>
           </form>
-          {inviteLink && (
-            <div style={{ marginTop: 12 }}>
-              <div className="muted small" style={{ marginBottom: 4 }}>
-                Konto nie istnieje — przekaż link zaproszenia (przyjmuje się po zalogowaniu na ten email):
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input readOnly value={inviteLink} onClick={e => (e.target as HTMLInputElement).select()} />
-                <button type="button" className="btn" onClick={() => copy(inviteLink)} style={{ flex: '0 0 auto' }}>Kopiuj</button>
-              </div>
-            </div>
-          )}
+          <div className="muted small" style={{ marginTop: 10 }}>
+            Bez linków i kodów — zaproszona osoba po prostu rejestruje się tym samym adresem
+            e-mail i automatycznie dołącza do klubu z przypisaną rolą.
+          </div>
         </div>
       )}
 
@@ -151,7 +136,7 @@ export default function UsersPanel({ state, showToast }: Props) {
                   <span className="player-row__name">{i.email}</span>
                   <div className="chip-row"><span className="chip">{ROLE_LABELS[i.role] || i.role}</span></div>
                 </div>
-                <button className="btn small" onClick={() => copy(`${window.location.origin}/?invite=${i.token}`)}>Kopiuj link</button>
+                <span className="muted small">dołączy po rejestracji</span>
                 <button className="btn small danger" onClick={() => revoke(i.id)}>Cofnij</button>
               </div>
             ))}

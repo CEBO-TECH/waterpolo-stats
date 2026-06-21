@@ -81,22 +81,6 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
     }
   };
 
-  const invitePlayer = async (email: string) => {
-    try {
-      const r = await api.inviteMember(email, 'player');
-      if (r.added) {
-        showToast('Dodano konto do klubu');
-      } else {
-        const link = `${window.location.origin}/?invite=${r.invitation.token}`;
-        navigator.clipboard?.writeText(link);
-        showToast('Link zaproszenia skopiowany');
-      }
-      refresh();
-    } catch (e: any) {
-      showToast(e.message || 'Błąd');
-    }
-  };
-
   const deletePlayer = async (playerId: string, playerName: string) => {
     if (!confirm(`Usunąć ${playerName}? Wszystkie statystyki zostaną skasowane.`)) return;
     try {
@@ -258,12 +242,10 @@ export default function PlayersPanel({ state, showToast, refresh }: Props) {
                     (p.age_categories || []).map(c => <span key={c} className="chip">{c}</span>)
                   )}
                   {p.has_account && <span className="chip" style={{ color: 'var(--green)' }}>✓ konto</span>}
+                  {!p.has_account && p.email && <span className="chip muted" title={p.email}>✉ dołączy po rejestracji</span>}
                 </div>
               </div>
               <div className="player-row__actions">
-                {canManage && p.email && !p.has_account && (
-                  <button className="btn small" onClick={() => invitePlayer(p.email!)}>Zaproś</button>
-                )}
                 <button className="btn small" onClick={() => setProfile(p)}>Profil</button>
                 <button className="btn small" onClick={() => openEdit(p)}>Edytuj</button>
                 <button className="btn small danger" onClick={() => deletePlayer(p.player_id, p.name)}>✕</button>

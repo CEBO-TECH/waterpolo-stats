@@ -8,7 +8,7 @@ type Props = {
   onLogin: () => void;
 };
 
-type Step = 'auth' | 'pick-club' | 'create-club';
+type Step = 'auth' | 'pick-club' | 'create-club' | 'no-club';
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Właściciel',
@@ -34,11 +34,21 @@ export default function LoginPage({ onLogin }: Props) {
     setLoading(true);
     try {
       if (isRegister) {
+        // Register only creates the account. Club membership is granted by email:
+        // if this address was invited or attached to a player, the backend auto-joins.
         await api.register(email, password);
         await api.login(email, password);
-        const club = await api.createClub(clubName.trim());
-        await api.selectClub(club.id);
-        onLogin();
+        const me = await api.getMe();
+        const userClubs: ClubInfo[] = me.clubs || [];
+        if (userClubs.length === 0) {
+          setStep('no-club');
+        } else if (userClubs.length === 1) {
+          await api.selectClub(userClubs[0].club_id);
+          onLogin();
+        } else {
+          setClubs(userClubs);
+          setStep('pick-club');
+        }
         return;
       }
 
@@ -144,6 +154,30 @@ export default function LoginPage({ onLogin }: Props) {
     );
   }
 
+  // ─── Account created, but email not yet attached to any club ───
+  if (step === 'no-club') {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <h1>Konto utworzone 🎉</h1>
+          <p className="subtitle">Nie należysz jeszcze do żadnego klubu</p>
+          <p className="muted" style={{ textAlign: 'center', lineHeight: 1.5 }}>
+            Twój adres <strong>{email}</strong> nie jest przypisany do żadnego klubu.
+            Poproś trenera lub właściciela, aby dodał Cię tym adresem e-mail — po ponownym
+            zalogowaniu dołączysz automatycznie.
+          </p>
+          <button
+            className="btn primary"
+            onClick={() => { setIsRegister(false); setStep('auth'); setError(''); }}
+            style={{ width: '100%', marginTop: 16 }}
+          >
+            Wróć do logowania
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ─── Login / Register ───
   return (
     <div className="login-page">
@@ -152,7 +186,7 @@ export default function LoginPage({ onLogin }: Props) {
         <img className="login-logo" src="/logo.png" alt="Cap Track" width={84} height={84} />
         <h1>Cap Track</h1>
         <p className="subtitle">
-          {isRegister ? 'Utwórz konto i klub' : 'Zaloguj się do platformy'}
+          {isRegister ? 'Utwórz konto' : 'Zaloguj się do platformy'}
         </p>
 
         {error && <div className="login-error">{error}</div>}
@@ -180,16 +214,9 @@ export default function LoginPage({ onLogin }: Props) {
         </div>
 
         {isRegister && (
-          <div className="form-group">
-            <label>Nazwa klubu</label>
-            <input
-              type="text"
-              value={clubName}
-              onChange={e => setClubName(e.target.value)}
-              placeholder="KS Waterpolo Kraków"
-              required
-            />
-          </div>
+          <p className="muted small text-center" style={{ marginTop: -4, marginBottom: 4 }}>
+            Po rejestracji dołączysz do klubu automatycznie, jeśli trener dodał Twój adres e-mail.
+          </p>
         )}
 
         <button
