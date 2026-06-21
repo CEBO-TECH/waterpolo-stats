@@ -24,13 +24,8 @@ export function isNativePlatform(): boolean {
  * Used when recording events for tactile confirmation.
  */
 export async function hapticImpact(): Promise<void> {
-  if (!isNativePlatform()) return;
-  try {
-    const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
-    await Haptics.impact({ style: ImpactStyle.Medium });
-  } catch {
-    // Plugin not available
-  }
+  // No-op — @capacitor/haptics removed (its 8.0.x build is incompatible with the
+  // resolved capacitor core and breaks the iOS build). Tactile feedback dropped.
 }
 
 /**

@@ -148,6 +148,8 @@ export default function LoginPage({ onLogin }: Props) {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleAuth}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="login-logo" src="/logo.png" alt="Cap Track" width={84} height={84} />
         <h1>Cap Track</h1>
         <p className="subtitle">
           {isRegister ? 'Utwórz konto i klub' : 'Zaloguj się do platformy'}

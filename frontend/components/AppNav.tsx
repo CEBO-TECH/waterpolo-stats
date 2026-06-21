@@ -95,7 +95,8 @@ export default function AppNav({
   return (
     <nav className={`app-nav app-nav--${variant}`} aria-label="Nawigacja główna">
       <div className="app-nav__brand">
-        <span className="app-nav__logo">🤽</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="app-nav__logo" src="/logo.png" alt="Cap Track" width={28} height={28} />
         <span className="app-nav__title">Cap Track</span>
         {variant === 'sidebar' && onCollapse && (
           <button className="app-nav__close" onClick={onCollapse} aria-label="Zwiń menu" title="Zwiń menu">«</button>

@@ -9,15 +9,10 @@ const config: CapacitorConfig = {
     // In dev: uncomment to point to local dev server
     // url: 'http://192.168.1.X:3001',
   },
-  plugins: {
-    SplashScreen: {
-      launchAutoHide: true,
-      backgroundColor: '#0b0f14',
-      androidScaleType: 'CENTER_CROP',
-    },
-    // StatusBar plugin removed — @capacitor/status-bar@8.0.2 is incompatible with
-    // capacitor-swift-pm 8.0.2 (breaks iOS build). Status bar set via Info.plist.
-  },
+  // Plugins @capacitor/status-bar, splash-screen and haptics removed — their 8.0.x
+  // iOS builds are incompatible with the resolved capacitor core (break the build).
+  // Status bar styled via Info.plist; splash via LaunchScreen.storyboard.
+  plugins: {},
   ios: {
     contentInset: 'automatic',
   },

@@ -656,7 +656,8 @@ label {
   margin-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
-.app-nav__logo { font-size: 22px; }
+.app-nav__logo { width: 28px; height: 28px; border-radius: 7px; object-fit: cover; display: block; flex: 0 0 auto; }
+.login-logo { width: 84px; height: 84px; border-radius: 18px; object-fit: cover; display: block; margin: 0 auto 14px; }
 .app-nav__title { font-weight: 700; font-size: 16px; letter-spacing: 0.3px; }
 .app-nav__close { margin-left: auto; min-height: 32px; padding: 4px 10px; }
 

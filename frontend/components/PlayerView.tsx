@@ -48,7 +48,8 @@ export default function PlayerView({ state, onLogout }: Props) {
     <div className="app-shell">
       <div className="app-main">
         <header>
-          <span className="app-nav__logo">🤽</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="app-nav__logo" src="/logo.png" alt="Cap Track" width={28} height={28} />
           <strong>{clubName}</strong>
           <div style={{ marginLeft: 'auto' }} className="tag">
             <span className="small">{state.user?.email}</span>
