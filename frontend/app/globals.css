@@ -1078,16 +1078,17 @@ label {
 /* ── Stats filter bar ── */
 
 .stats-filters { display: flex; flex-direction: column; gap: 12px; }
+/* Column count follows the actual container width (not the viewport), so the
+   card never declares more/narrower columns than the content area can host.
+   minmax(200px, …) guarantees every field stays wide enough for native
+   <input type="date"> on iOS/WKWebView, which otherwise overflows its cell and
+   overlaps the neighbouring field. align-items:end keeps the controls on one
+   line even when a label wraps to two lines. */
 .stats-filters__row {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-@media (min-width: 768px) {
-  .stats-filters__row { grid-template-columns: repeat(2, 1fr); }
-}
-@media (min-width: 1024px) {
-  .stats-filters__row { grid-template-columns: repeat(4, 1fr); }
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: end;
 }
 .stats-filters__field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .stats-filters__field label {
@@ -1097,7 +1098,17 @@ label {
   letter-spacing: 0.5px;
   color: var(--fg-muted);
 }
-.stats-filters__field .players-toolbar__select { width: 100%; }
+.stats-filters__field .players-toolbar__select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Normalise native date inputs so they shrink to the cell instead of forcing
+   their intrinsic (wider) width on iOS, and line up in height with the selects. */
+.stats-filters__field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
 .stats-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ── Chart legend (overlaid series) ── */
